@@ -1,0 +1,660 @@
+Rem ***** Included Source File *****
+
+_phy_core_init:
+if phycoreinit=0
+`globals
+global phycoreinit as boolean
+global revolute as integer
+global oldphytiming# as float
+
+global tidesizex# as float : tidesizex#=-720
+global tidesizey# as float : tidesizey#=-720
+global tidex# as float
+global tidey# as float
+global waterdensity# as float : waterdensity#=200
+global pickedobject
+global pickforce#
+global pickstate
+
+global dim gravity(2) as float : gravity(1)=-20
+global dim waterlevel(1) as float
+waterlevel(0)=500
+
+`if phy_debug>0 then 
+phy enable debug
+`phy start
+phy start 1,0,1
+`phy update 1
+
+`physx collision groups
+phy set group collision 0,2,0
+
+`phy set fixed timing 0.05
+tframerategame=framerategame
+if framerategame<=0 then tframerategame=60
+timing#=(0.05*(60/tframerategame))*1.5
+`timing#=(0.05*(60/tframerategame))*0.5
+phy set fixed timing timing#
+
+phy set gravity 0,gravity(1),0
+phy set default sleep linear velocity squared 0.36
+phy set default sleep angular velocity squared 0.36
+
+phy make material 1,"static"
+phy set material restitution 1,0
+phy set material static friction 1,0.0002
+phy set material dynamic friction 1,0.0002
+phy set material friction combine 1,3
+phy build material 1
+
+type collidetype
+phya as integer
+phyb as integer
+cola as boolean
+colb as boolean
+ffx as float
+ffy as float
+ffz as float
+cpx as float
+cpy as float
+cpz as float
+nx as float
+ny as float
+nz as float
+nfx as float
+nfy as float
+nfz as float
+endtype
+
+type physxtype
+obj as integer
+x as float
+y as float
+maxy as float
+z as float
+rx as float
+ry as float
+rz as float
+velocity as float
+fforce as float
+group as integer
+gravity as boolean
+mode as integer
+material as integer
+collide as integer
+kinematic as boolean
+terrain as boolean
+static as boolean
+mass as float
+fdir as float
+restit as float
+joint as integer
+lineardumping as float
+angulardumping as float
+maxangularvelocity as float
+water as integer
+endtype
+
+`arrays
+global dim phycollide(0) as collidetype
+global dim physix(0) as physxtype
+global dim physdx(0) as integer
+global phy_time as integer
+global phycount as boolean
+phycoreinit=1
+for p=0 to 100
+phy update
+next p
+endif
+return
+
+function phyuseforce(distance#,force#)
+oldx#=camera position x() : oldy#=camera position y() : oldz#=camera position z()
+move camera distance#
+newx#=camera position x() : newy#=camera position y() : newz#=camera position z()
+forceX#=(oldx#-newx#)*force# : forceY#=(oldy#-newy#)*force# : forceZ#=(oldz#-newz#)*force#
+phyobj=sc_raycastgroup(1,oldx#,oldy#,oldz#,newx#,newy#,newz#,0)
+if phyobj>0
+PHY ADD RIGID BODY FORCE phyobj,forceX#,forceY#,forceZ#,oldx#,oldy#,oldz#,2
+endif
+move camera -distance#
+endfunction
+
+function pickobject(tobj)
+if tobj>0
+pickedobject=tobj
+obs#=object size(tobj)+40
+
+if pickstate=0 and mouseclick()=1 then pickstate=1
+
+if pickstate=1
+if mouseclick()=1
+pickforce#=curvevalue(20,pickforce#,40)
+tpickforce#=-pickforce#
+else
+pickstate=2
+tpickforce#=pickforce#
+endif
+endif
+
+move camera obs#+tpickforce#
+getcentralobjectpositions(tobj)
+opx#=camera position x()-object position x(positioncube)
+opy#=camera position y()-object position y(positioncube)
+opz#=camera position z()-object position z(positioncube)
+force#=abs((phy get rigid body linear velocity x(tobj)+phy get rigid body linear velocity y(tobj)+phy get rigid body linear velocity z(tobj))*0.3333333333333333)
+phycollide=findphycollide(tobj)
+phy=phyfindobject(tobj)
+if phycollide>0 and phy>0
+phy set rigid body angular damping tobj,0.1
+phy update rigid body mass tobj,0,physix(phy).mass*0.1
+else
+phy set rigid body angular damping tobj,2
+phy update rigid body mass tobj,0,physix(phy).mass
+endif
+phy set rigid body linear velocity tobj,opx#*5,opy#*5,opz#*5
+move camera -(obs#+tpickforce#)
+
+`release object
+if pickstate=2 or keypressed(18)=1 or force#>110
+phy set rigid body angular damping tobj,0.1
+tobj=0 : pickstate=0 : pickforce#=0
+endif
+
+endif
+pickedobject=tobj
+endfunction tobj
+
+
+function phy_update(fps)
+if fps=0 then time=0 else time=1000/fps
+`phytiming#=fixfps(0.05,60)
+`if oldphytiming#<>phytiming#
+`phy set fixed timing phytiming#
+`oldphytiming#=phytiming#
+`endif
+if timer()-phy_time>time
+`if phycount=0 then phycount=1 else phycount=0
+`if phycount=0
+gosub _phy_core_init
+
+    empty array phycollide()
+    while PHY GET COLLISION DATA()
+    phya=PHY GET COLLISION OBJECT A() : phyb=PHY GET COLLISION OBJECT B()
+	array insert at bottom phycollide()
+	od=array count(phycollide())
+	phycollide(od).phya=phya : phycollide(od).phyb=phyb
+	phycollide(od).cola=PHY GET COLLISION(phya,phyb) : phycollide(od).colb=PHY GET COLLISION(phyb,phya)
+	phycollide(od).ffx=PHY GET COLLISION FRICTION FORCE x(phyb,0)
+	phycollide(od).ffy=PHY GET COLLISION FRICTION FORCE y(phyb,0)
+	phycollide(od).ffz=PHY GET COLLISION FRICTION FORCE z(phyb,0)
+	phycollide(od).cpx=PHY GET COLLISION CONTACT POINT X(phyb,0)
+	phycollide(od).cpy=PHY GET COLLISION CONTACT POINT y(phyb,0)
+	phycollide(od).cpz=PHY GET COLLISION CONTACT POINT z(phyb,0)
+	phycollide(od).nx=PHY GET COLLISION CONTACT NORMAL X(phyb,0)
+	phycollide(od).ny=PHY GET COLLISION CONTACT NORMAL y(phyb,0)
+	phycollide(od).nz=PHY GET COLLISION CONTACT NORMAL z(phyb,0)
+	phycollide(od).nfx=PHY GET COLLISION NORMAL FORCE X(phyb,0)
+	phycollide(od).nfy=PHY GET COLLISION NORMAL FORCE y(phyb,0)
+	phycollide(od).nfz=PHY GET COLLISION NORMAL FORCE z(phyb,0)
+	
+	if phy_debug=1
+	position object positioncube,phycollide(od).cpx,phycollide(od).cpy,phycollide(od).cpz
+	if object in screen(positioncube)=1
+	center text object screen x(positioncube),object screen y(positioncube),"*"
+	`center text object screen x(positioncube),object screen y(positioncube)-10,"["+str$(phycollide(od).nfx)+"]"+"["+str$(phycollide(od).nfy)+"]"+"["+str$(phycollide(od).nfz)+"]"
+    endif
+    endif
+    
+    endwhile
+
+tcpx#=camera position x()
+tcpy#=camera position y()
+tcpz#=camera position z()
+
+inc tidesizex#,rnd(1000)*0.01
+inc tidesizey#,rnd(1000)*0.01
+if tidesizex#>720 then tidesizex#=-720
+if tidesizey#>720 then tidesizey#=-720
+tidex#=curvevalue(sin(tidesizex#*0.5)*3,tidex#,4)
+tidey#=curvevalue(cos(tidesizey#*0.5)*3,tidey#,4)
+
+activeobjectcount=0
+
+for phyd=1 to array count(physdx())
+phy=physdx(phyd)
+if phy>0 
+tobj=physix(phy).obj
+getcentralobjectpositions(tobj)
+`linearvector#=distance(physix(phy).x,physix(phy).y,physix(phy).z,object position x(positioncube),object position y(positioncube),object position z(positioncube))
+linearvector#=abs(phy get rigid body linear velocity x(tobj))+abs(phy get rigid body linear velocity y(tobj))+abs(phy get rigid body linear velocity z(tobj))
+
+tod=findphycollideindex(tobj)
+if tod>0 then inc physix(phy).collide else physix(phy).collide=0
+if tod>0 then physix(phy).fforce=abs(phycollide(tod).ffx)+abs(phycollide(tod).ffy)+abs(phycollide(tod).ffz) else physix(phy).fforce=0
+
+`Collision sounds
+if physix(phy).velocity>40
+if physix(phy).collide=1
+folder$="audiobank\materials\"
+material$="0ground"
+if physix(phy).material=1 then material$="0ground"
+if physix(phy).material=2 then material$="1stone"
+if physix(phy).material=3 then material$="2metal"
+if physix(phy).material=4 then material$="3wood"
+if physix(phy).material=5 then material$="4glass"
+if physix(phy).material=6 then material$="5liquid"
+if physix(phy).material=7 then material$="6cloth"
+if physix(phy).material=8 then material$="7drum"
+sndfile$=folder$+material$+"i.wav"
+objs#=object size(tobj)
+tmpsndforce#=(physix(phy).velocity/100)
+`collidesound=play3dsound(sndfile$,phycollide(tod).cpx,phycollide(tod).cpy,phycollide(tod).cpz,objs#,30000*tmpsndforce#,0)
+`tempfreq=sound speed(collidesound)
+if objs#<50 then tempfreq=tempfreq*(0.5+(objs#/50))
+if tempfreq=0 then tempfreq=22000
+`set sound speed collidesound,rndrange(tempfreq-1000,tempfreq+1000)
+endif
+endif
+`endcollision sounds
+
+physix(phy).velocity=linearvector#
+oldx#=physix(phy).x
+oldz#=physix(phy).z
+physix(phy).x=object position x(positioncube)
+physix(phy).y=object position y(positioncube)
+physix(phy).z=object position z(positioncube)
+objs#=object size(tobj)
+if objs#<0.1 then objs#=0.1
+objdist#=distance(camera position x(),camera position y(),camera position z(),physix(phy).x,physix(phy).y,physix(phy).z)
+realmass#=phy get rigid body mass(tobj)
+
+`Sleep Debug
+if keystate(16)=1
+if object in screen(tobj)=1
+if PHY GET RIGID BODY SLEEPING(tobj)=1
+center text object screen x(tobj),object screen y(tobj),"ZZZzzz"
+else
+center text object screen x(tobj),object screen y(tobj),"O_o"
+endif
+`center text object screen x(tobj),object screen y(tobj)-10,"["+str$(object angle x(tobj))+"]"+"["+str$(object angle y(tobj))+"]"+"["+str$(object angle z(tobj))+"]"
+center text object screen x(tobj),object screen y(tobj)-10,str$(linearvector#)
+center text object screen x(tobj),object screen y(tobj)-20,str$(physix(phy).fforce)
+endif
+endif
+
+if objdist#<500
+`if realmass#<>physix(phy).mass then phy update rigid body mass tobj,0,physix(phy).mass
+phy set rigid body sleep linear velocity tobj,0.36
+phy set rigid body sleep angular velocity tobj,0.36
+else
+`if realmass#<>10 then phy update rigid body mass tobj,0,10
+phy set rigid body sleep linear velocity tobj,10
+phy set rigid body sleep angular velocity tobj,10
+endif
+
+`Water
+if physix(phy).kinematic=0
+
+if waterlevel(0)<>waterlevel(1)
+if ABS(waterlevel(0)-physix(phy).y)<5 then phy add rigid body force tobj,0,-0.001,0,1
+physix(phy).maxy=waterlevel(0)
+endif
+
+plvx#=phy get rigid body linear velocity x(tobj)
+plvy#=phy get rigid body linear velocity y(tobj)
+plvz#=phy get rigid body linear velocity z(tobj)
+
+if physix(phy).y<waterlevel(0)
+density#=physix(phy).mass/objs#
+deep#=density#*0.1
+
+if abs(oldx#-physix(phy).x)>4 or abs(oldz#-physix(phy).z)>4 then physix(phy).maxy=waterlevel(0)
+if tod>0
+if phycollide(tod).ny>0.5
+if phy get rigid body dynamic(phycollide(tod).phya)=0 then physix(phy).maxy=physix(phy).y-4
+endif
+endif
+
+newlevel#=physix(phy).maxy
+
+if ABS(waterlevel(0)-physix(phy).y)<5
+forcey#=(((newlevel#-physix(phy).y)*0.05))*0.5
+else
+if objdist#<500
+forcey#=(((newlevel#-physix(phy).y)*0.05))*4
+else
+forcey#=(((newlevel#-physix(phy).y)*0.05))*0.5
+endif
+endif
+if forcey#>5 then forcey#=5
+
+pavx#=phy get rigid body angular velocity x(tobj)
+pavy#=phy get rigid body angular velocity y(tobj)
+pavz#=phy get rigid body angular velocity z(tobj)
+
+`remstart
+pavx#=-object angle x(tobj)*0.005
+pavy#=-object angle y(tobj)*0.005
+pavz#=-object angle z(tobj)*0.005
+pavx#=redusevalue(pavx#,-1,1)
+pavy#=redusevalue(pavy#,-1,1)
+pavz#=redusevalue(pavz#,-1,1)
+`remend
+
+if density#<waterdensity#
+if physix(phy).gravity<>0
+phy set rigid body gravity tobj,0 : physix(phy).gravity=0
+endif
+trand#=0
+if rnd(100)>50 and activeobjectcount<40
+if objdist#<500
+if object in screen(tobj)=1
+trand#=(rndrange(1,20)*0.01)
+inc activeobjectcount
+endif
+endif
+endif
+
+phy set rigid body angular velocity tobj,(pavx#*0.99)+(tidex#*0.005*trand#),(pavy#*0.99)+(tidey#*0.005*trand#),(pavz#*0.99)+(tidex#*0.005*trand#)
+phy set rigid body linear velocity tobj,plvx#*0.93,((plvy#*0.93)+forcey#)+(tidey#*trand#),plvz#*0.93
+else
+lvc#=physix(phy).mass/20000
+lvc#=redusevalue(lvc#,0.85,1)
+
+phy set rigid body linear velocity tobj,plvx#*lvc#,plvy#*lvc#,plvz#*lvc#
+`phy set rigid body angular velocity tobj,pavx#*0.97,pavy#*0.97,pavz#*0.97
+phy set rigid body angular damping tobj,2
+endif
+
+endif
+
+if physix(phy).y>waterlevel(0)
+if physix(phy).gravity<>1
+physix(phy).gravity=1
+phy set rigid body max angular velocity tobj,20
+phy set rigid body angular damping tobj,0.1
+phy set rigid body gravity tobj,1
+endif
+pavx#=phy get rigid body angular velocity x(tobj)
+pavy#=phy get rigid body angular velocity y(tobj)
+pavz#=phy get rigid body angular velocity z(tobj)
+phy set rigid body angular velocity tobj,(pavx#*0.95),(pavy#*0.95),(pavz#*0.95)
+endif
+
+endif
+`endwater
+
+endif
+next phyd
+
+phy update
+
+`phy update 0
+`phy update 1
+
+`phy update
+    phy_time=timer()
+endif
+endfunction
+ 
+function findphycollideindex(obj)
+if objectexist(obj)=1
+for od=1 to array count(phycollide())
+if (phycollide(od).phya=obj and phycollide(od).cola=1) or (phycollide(od).phyb=obj and phycollide(od).colb=1)
+if phycollide(od).phya=obj then objB=phycollide(od).phyb
+if phycollide(od).phyb=obj then objB=phycollide(od).phya
+if objB=0 then objB=1
+endif
+if objB>0 then exitfunction od
+next od
+endif
+endfunction 0
+
+function findphycollide(obj)
+if objectexist(obj)=1
+for od=1 to array count(phycollide())
+if (phycollide(od).phya=obj and phycollide(od).cola=1) or (phycollide(od).phyb=obj and phycollide(od).colb=1)
+if phycollide(od).phya=obj then objB=phycollide(od).phyb
+if phycollide(od).phyb=obj then objB=phycollide(od).phya
+if objB=0 then objB=1
+endif
+if objB>0 then exitfunction objB
+next od
+endif
+endfunction 0
+
+function physetupobject(obj,colmode,mass#,fdir#,restit#,material,kinematic,scale,static)
+`modes: 0-poligon, 1-sphere, 2-box
+if restit#>1 then restit#=1
+if restit#<0 then restit#=0
+gosub _phy_core_init
+if objectexist(obj)=1
+if phyfindobject(obj)=0
+array insert at bottom physix()
+phy=array count(physix())
+
+if static=0
+
+	phy make material obj, "none"
+	phy set material restitution obj,restit#
+	phy set material static friction obj,fdir#*0.00005
+    phy set material dynamic friction obj,fdir#*0.00005
+    PHY SET MATERIAL FRICTION COMBINE obj,1
+	phy build material obj
+
+array insert at bottom physdx()
+phyd=array count(physdx())
+physdx(phyd)=phy
+`-----------DYNAMIC------------------
+
+if kinematic>0
+mobj=object instance of(obj)
+if mobj=0 then mobj=obj
+`if objectexist(mobj)=1
+`door=get limb by name(mobj,"door",0)
+`endif
+
+door=-1
+doorl=findlimb(mobj,"door_l")
+doorr=findlimb(mobj,"door_r")
+doorl=findnotexactlimb(mobj,"door")
+
+if doorl>0 then door=doorl : doors=-1
+if doorr>0 then door=doorr : doors=1
+
+if door>-1
+
+opx#=object position x(obj)
+opy#=object position y(obj)
+opz#=object position z(obj)
+`if object collision center x(obj)>0 then ts=1 else ts=-1
+osx#=object size x(obj,1)*0.5
+move object right obj,osx#*doors
+lpx#=object position x(obj)
+lpy#=object position y(obj)
+lpz#=object position z(obj)
+move object right obj,-osx#*doors
+
+scale object obj,scale,scale,scale
+phy make rigid body dynamic box obj,obj
+phy set rigid body group obj,2
+collidewall=sc_spherecastgroup(1,opx#,opy#,opz#,lpx#,lpy#,lpz#,10,obj)
+if collidewall>0 then obja=sc_getobjecthit()
+physix(phy).joint=phynewjoint()
+if obja>0 then phy make revolute joint physix(phy).joint,obja,obj,0,90,0,lpx#,lpy#,lpz#
+`PHY SET REVOLUTE JOINT LIMIT physix(phy).joint,-85,0
+PHY SET REVOLUTE JOINT LIMIT physix(phy).joint,0,90
+`PHY SET REVOLUTE JOINT SPRING physix(phy).joint,0,10000
+`PHY SET REVOLUTE JOINT GLOBAL AXIS physix(phy).joint,1,0,0,0
+PHY SET REVOLUTE JOINT PROJECTIOn physix(phy).joint,1,400,90
+PHY BUILD REVOLUTE JOINT physix(phy).joint
+`PHY SET RIGID BODY LINEAR DAMPING obj,0.05
+`PHY SET RIGID BODY MAX ANGULAR VELOCITY obj,0.5
+`PHY SET RIGID BODY ANGULAR DAMPING obj,5
+sc_setobject(obj,1,2,material,1)
+`scale object obj,scale,scale,scale
+PHY UPDATE RIGID BODY MASS obj,0,mass#
+endif
+else
+
+if colmode<3 or colmode>4
+scale object obj,scale,scale,scale
+sc_setobject(obj,1,2,material,1)
+phy make rigid body dynamic box obj,obj
+phy set rigid body group obj,1
+endif
+if colmode=3
+mobj=object instance of(obj)
+if mobj>0
+opx#=object position x(obj) : oax#=object angle x(obj)
+opy#=object position y(obj) : oay#=object angle y(obj)
+opz#=object position z(obj) : oaz#=object angle z(obj)
+delete object obj
+`load object mesh$,obj
+make mesh from object mobj,mobj
+make object obj,mobj,0
+delete mesh mobj
+scale object obj,scale,scale,scale
+position object obj,opx#,opy#,opz# : rotate object obj,oax#,oay#,oaz#
+phy make rigid body dynamic convex obj,obj
+phy set rigid body group obj,1
+delete object obj
+instance object obj,mobj
+position object obj,opx#,opy#,opz# : rotate object obj,oax#,oay#,oaz#
+phy set rigid body position obj,opx#,opy#,opz# : phy set rigid body rotation obj,oax#,oay#,oaz#
+else
+phy make rigid body dynamic convex obj,obj
+phy set rigid body group obj,1
+endif
+if mobj>0 then scale object mobj,scale,scale,scale
+scale object obj,scale,scale,scale
+sc_setcomplexobject(obj,1,2,material,1)
+endif
+if colmode=4
+scale object obj,scale,scale,scale
+sc_setobject(obj,1,1,material,1)
+phy make rigid body dynamic sphere obj,obj
+phy set rigid body group obj,1
+endif
+
+PHY SET RIGID BODY MAX ANGULAR VELOCITY obj,20
+phy set rigid body angular damping tobj,0.1
+PHY SET RIGID BODY LINEAR DAMPING obj,0.05
+endif
+
+if mass#>0
+phy set rigid body mass obj,mass#
+PHY UPDATE RIGID BODY MASS obj,0,mass#
+ENDIF
+
+`PHY SET RIGID BODY LINEAR DAMPING obj,-10
+
+	else
+`------------STATIC--------------------
+mobj=object instance of(obj)
+if mobj>0 then scale object mobj,scale,scale,scale
+scale object obj,scale,scale,scale
+sc_setcomplexobject(obj,1,2,material,0)
+myopx#=object position x(obj)
+myopy#=object position y(obj)
+myopz#=object position z(obj)
+myos#=object size(obj)
+myos#=myos#*3
+`notterrain=sc_raycast(obj,myopx#,myopy#-myos#,myopz#,myopx#,myopy#+myos#,myopz#,0)
+`if notterrain=1
+phy make rigid body static mesh obj,1
+phy set rigid body group obj,0
+
+`phyloadmesh(obj,mesh$,1)
+`else
+`phy make rigid body static terrain obj,obj
+`physix(phy).terrain=1
+`endif
+endif
+
+physix(phy).obj=obj
+physix(phy).kinematic=kinematic
+physix(phy).group=group
+physix(phy).mode=colmode
+physix(phy).material=material
+physix(phy).static=static
+physix(phy).mass=mass#
+physix(phy).fdir=fdir#
+physix(phy).restit=restit#
+physix(phy).lineardumping=phy get rigid body linear damping(obj)
+physix(phy).angulardumping=phy get rigid body angular damping(obj)
+physix(phy).maxangularvelocity=phy get rigid body max angular velocity(obj)
+
+endif
+endif
+endfunction
+
+function findphysdx(phy)
+gosub _phy_core_init
+for phyd=1 to array count(physdx())
+if physdx(phyd)=phy then exitfunction phyd
+next phyd
+endfunction 0
+
+function phyfindobject(obj)
+gosub _phy_core_init
+phymax=array count(physix())
+for phy=1 to phymax
+if physix(phy).obj=obj then exitfunction phy
+next phy
+endfunction 0
+
+function phydeleteobject(obj)
+gosub _phy_core_init
+phy=phyfindobject(obj)
+if phy>0
+if physix(phy).static=0
+phyd=findphysdx(phy)
+if phyd>0 then array delete element physdx(),phyd
+endif
+phydeletejoint(physix(phy).joint)
+phy delete rigid body obj
+array delete element physix(),phy
+
+endif
+endfunction
+
+function phydeletejoint(joint)
+if phyjointexist(joint) then phy delete joint joint
+endfunction
+
+function phyjointexist(joint)
+if joint>0
+if phy get joint exist(joint)>0 then exitfunction 1
+endif
+endfunction 0
+
+function phynewjoint()
+for j=1 to 99999
+if phy get joint exist (j)=0 then exitfunction j
+next j
+endfunction 0
+
+function phyloadmesh(obj,mesh$,material)
+if objectexist(obj)=1
+if lower$(right$(mesh$,2))=".x" then phymesh$=lower$(left$(mesh$,len(mesh$)-2))+".phys"
+if lower$(right$(mesh$,4))=".dbo" then phymesh$=lower$(left$(mesh$,len(mesh$)-4))+".phys"
+oldx#=object position x(obj) : oldy#=object position y(obj) : oldz#=object position z(obj)
+oldax#=object angle x(obj) : olday#=object angle y(obj) : oldaz#=object angle z(obj)
+position object obj,0,0,0
+rotate object obj,0,0,0
+`if file exist(phymesh$)=1 then delete file phymesh$
+if file exist(phymesh$)=0
+phyobj=find free object() : load object mesh$,phyobj
+if material>0 then phy make rigid body static mesh phyobj,phymesh$,material else phy make rigid body static mesh phyobj,phymesh$
+phy delete rigid body phyobj : delete object phyobj
+endif
+position object obj,oldx#,oldy#,oldz#
+rotate object obj,oldax#,olday#,oldaz#
+if file exist(phymesh$)=1
+if material>0 then phy load rigid body static mesh obj,phymesh$,material else phy load rigid body static mesh obj,phymesh$
+endif
+phy set rigid body position obj,oldx#,oldy#,oldz# : phy set rigid body rotation obj,oldax#,olday#,oldaz#
+endif
+endfunction

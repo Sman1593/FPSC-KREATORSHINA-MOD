@@ -1,0 +1,549 @@
+Rem ***** Included Source File *****
+_Dynamix_init:
+if Dynamixinit=0
+global Dynamixinit=1
+global dynamixdebug=2
+global Dynpos
+global Dyndir
+global gravity as xyztype
+global dyntiming as xyztype
+global plrpickobj as integer
+global kinematicbody
+global waterlevel as float
+waterlevel=58
+global waterobj
+global liftspeed as float
+global lift
+global liftvx#
+global liftvy#
+global liftvz#
+
+global timestep as float
+global iter as word
+timestep=0.017
+iter=1
+
+gravity.y=-200
+
+Dynpos=find free vector() : v=make vector3(Dynpos)
+Dyndir=find free vector() : v=make vector3(Dyndir)
+
+DYN START
+DYN SET GRAVITY gravity.x,gravity.y,gravity.z
+`dyn set timing timestep,iter,0
+`dyn set timing 0,0,1
+
+if dynamixdebug=1
+DYN SET PARAMETER NX_VISUALIZATION_SCALE, 1.0
+DYN SET PARAMETER NX_VISUALIZE_COLLISION_SHAPES, 1.0
+endif
+`dynamixdebug=2
+if dynamixdebug=2
+DYN VISUAL DEBUGGER ON 
+endif
+
+`collisions
+`DYN GROUP SET COLLISION 4,1,1
+`NX_NOTIFY_ON_START_TOUCH || NX_NOTIFY_ON_END_TOUCH || NX_NOTIFY_ON_TOUCH
+DYN GROUP SET COLLISION 4,1,0
+`DYN GROUP SET COLLISION 4,2,0
+
+`Collision detection
+`DYN GROUP PAIR SET FLAGS 5, 2, NX_NOTIFY_ON_START_TOUCH `|| NX_NOTIFY_ON_END_TOUCH
+
+DYN GROUP PAIR SET FLAGS 2, 1, NX_NOTIFY_ON_START_TOUCH || NX_NOTIFY_ON_END_TOUCH
+DYN GROUP PAIR SET FLAGS 2, 2, NX_NOTIFY_ON_START_TOUCH || NX_NOTIFY_ON_END_TOUCH
+
+`DYN GROUP PAIR SET FLAGS 1,4,4
+
+dyn make material 1,0,0.0002,0.0002
+`dyn make material 1,0,0,0
+
+type collidetype
+phya as integer
+phyb as integer
+flag as integer
+endtype
+
+type phytype
+obj as integer
+underwater as boolean
+ground as boolean
+endtype
+
+
+global dim phycollide(0) as collidetype
+global dim phy(0) as phytype
+
+`LOAD SOUNDS
+gosub _ode_loadmateriallist_init
+
+for m=0 to gmaterialmax
+tmp=preloadsound(material(m).scrape$,1)
+tmp=preloadsound(material(m).impact$,1)
+tmp=preloadsound(material(m).destroy$,1)
+tmp=preloadsound(material(m).tred0$,1)
+tmp=preloadsound(material(m).tred1$,1)
+tmp=preloadsound(material(m).tred2$,1)
+tmp=preloadsound(material(m).tred3$,1)
+tmp=preloadsound(material(m).impact$,1)
+next m
+``````````````````````
+
+endif
+return
+
+_Dynamix_end:
+if Dynamixinit=1
+Dynamixinit=0
+DYN FETCH RESULTS
+DYN STOP
+endif
+return
+
+function Dynamix_makemesh(obj,file$)
+if Dynamixinit=0 then gosub _Dynamix_init
+tmeshfile$=newformat(file$,".TMESH")
+if objectexist(obj)
+if fileexist(tmeshfile$)=0
+tMeshID=Dynamix_find_free_triangle_mesh()
+make mesh from object obj,obj
+convert mesh to vertexdata obj
+tobj=makeobject(obj)
+delete mesh obj
+DYN COOK TRIANGLE MESH tobj,tmeshfile$
+delete object tobj
+DYN LOAD TRIANGLE MESH tmeshfile$,tMeshID
+DYN MAKE TRIANGLE MESH obj,tMeshID
+else
+tMeshID=Dynamix_find_free_triangle_mesh()
+DYN LOAD TRIANGLE MESH tmeshfile$,tMeshID
+DYN MAKE TRIANGLE MESH obj,tMeshID
+endif
+if copyfiles>0 then copyfile(tmeshfile$,copydirectory$+"Files\"+tmeshfile$)
+DYN SET SHAPE GROUP obj,1,1
+DYN SET GROUP obj,1
+
+dyn set material obj,1,1
+endif
+endfunction tMeshID
+
+function dynamix_setup(obj,file$,ct,mass#,fdir#,restit#,kinematic)
+if Dynamixinit=0 then gosub _Dynamix_init
+`modes: 0-box, 3-convex, 4-sphere, else boxes
+if objectexist(obj)
+topx#=object position x(obj) : topy#=object position y(obj) : topz#=object position z(obj)
+toax#=object angle x(obj) : toay#=object angle y(obj) : toaz#=object angle z(obj)
+if mass#<1 then mass#=1
+dens#=mass#
+
+if ct=3 or ct=4
+if ct=3 then dynmakeconvex(obj,file$,dens#)
+if ct=4 then dyn make sphere obj,dens#
+else
+dyn make box obj,dens#
+endif
+
+dyn clear shapes
+`restit#=0
+dyn make material obj,restit#,fdir#,fdir#
+`dyn make material obj,0,0,0
+dyn set material obj,2,obj
+`dyn material set flags obj,32
+`dyn material set flags obj,16
+`tsize#=((object size x(obj)+object size y(obj)+object size z(obj))/3) : density#=(mass#/tsize#)*0.001
+`mass#=mass#*0.0001
+`mass#=1000
+`dyn set mass obj,mass#*0.1
+dyn update mass from shapes obj,dens#,mass#
+
+if kinematic>0
+DYN KINEMATIC ON obj
+dyn set SHAPE group obj,0,4
+dyn set group obj,4
+else
+DYN SET SHAPE GROUP obj,0,2
+DYN SET GROUP obj,2
+endif
+
+dyn set position obj,topx#,topy#,topz#
+dyn set rotation obj,toax#,toay#,toaz#
+dyn set linear velocity obj,0,1,0
+array insert at bottom phy()
+p=array count(phy())
+phy(p).obj=obj
+
+endif
+endfunction p
+
+function dyn_setobjectgroup(obj,tgroup)
+if objectexist(obj)
+if dyn actor exists(obj)
+if dyn is dynamic(obj)
+DYN SET SHAPE GROUP obj,0,tgroup
+DYN SET GROUP obj,tgroup
+endif : endif : endif
+endfunction
+
+
+function dynmakeconvex(obj,file$,density#)
+cfile$=newformat(file$,".CMESH")
+tMeshID=Dynamix_find_free_convex_mesh()
+if fileexist(cfile$)=0
+tobj=find free object()
+sfile$=optimizelikestatic(file$)
+load object sfile$,tobj
+DYN COOK CONVEX MESH tobj,cfile$
+delete object tobj
+endif
+if fileexist(cfile$)>0
+DYN LOAD CONVEX MESH cfile$,tMeshID
+if copyfiles>0 then copyfile(cfile$,copydirectory$+"Files\"+cfile$)
+DYN MAKE CONVEX MESH obj,tMeshID,density#
+`if fileexist(cfile$) then makefolders("E:\Serega\water test\Files\"+cfile$) : copy file cfile$,"E:\Serega\water test\Files\"+cfile$
+endif
+endfunction
+
+function Dynamix_find_free_convex_mesh()
+m=1 : while dyn convex mesh exists(m)=1 : inc m : endwhile
+endfunction m
+
+function Dynamix_find_free_triangle_mesh()
+m=1 : while dyn triangle mesh exists(m)=1 : inc m : endwhile
+endfunction m
+
+function Dynamix_update()
+if Dynamixinit=0 then gosub _Dynamix_init
+
+`DYN DEBUG RENDER
+waterdensity#=1 : wading=0
+dyn set force mode 1
+for p=1 to array count(phy())
+tobj=phy(p).obj
+if objectexist(tobj)
+dyn get linear velocity tobj,Dynpos : lvx#=x vector3(Dynpos) : lvy#=y vector3(Dynpos) : lvz#=z vector3(Dynpos)
+dyn get angular velocity tobj,Dynpos : avx#=x vector3(Dynpos) : avy#=y vector3(Dynpos) : avz#=z vector3(Dynpos)
+tsize#=((object size x(tobj)+object size y(tobj)+object size z(tobj))/3)*6 : mass#=dyn get mass(tobj) : density#=(mass#/tsize#)*0.001
+lvd#=distance(0,0,0,lvx#,lvy#,lvz#)
+
+if abs(lvx#)>0.2 or abs(lvy#)>0.2 or abs(lvz#)>0.2 or abs(avx#)>0.05 or abs(avy#)>0.05 or abs(avz#)>0.05
+
+if density#<waterdensity#
+`1st side
+useforceatpoint(tobj,-1,1)
+if object position y(positioncube)<waterlevel-4 then dyn add force at pos tobj,0,min(mass#,(waterlevel-4-object position y(positioncube))*100),0,object position x(positioncube),object position y(positioncube),object position z(positioncube)
+`2st side
+useforceatpoint(tobj,1,1)
+if object position y(positioncube)<waterlevel-4 then dyn add force at pos tobj,0,min(mass#,(waterlevel-4-object position y(positioncube))*100),0,object position x(positioncube),object position y(positioncube),object position z(positioncube)
+`3st side
+useforceatpoint(tobj,-1,-1)
+if object position y(positioncube)<waterlevel-4 then dyn add force at pos tobj,0,min(mass#,(waterlevel-4-object position y(positioncube))*100),0,object position x(positioncube),object position y(positioncube),object position z(positioncube)
+`4st side
+useforceatpoint(tobj,1,-1)
+if object position y(positioncube)<waterlevel-4 then dyn add force at pos tobj,0,min(mass#,(waterlevel-4-object position y(positioncube))*100),0,object position x(positioncube),object position y(positioncube),object position z(positioncube)
+if object position y(positioncube)<waterlevel-4 then dyn add torque tobj,rnd(100)*0.1,rnd(100)*0.1,rnd(100)*0.1
+endif
+endif
+
+if object position y(tobj)+object collision center y(tobj)>waterlevel
+dyn enable gravity tobj,1
+dyn set angular damping tobj,0
+dyn set linear damping tobj,0
+phy(p).underwater=0
+else
+
+if phy(p).underwater=0
+tmpsnd=0
+if abs(lvy#)>20
+if wading<2
+if abs(lvy#)>100
+tmpsnd=play3dsound("audiobank\materials\17WadingI.wav",object position x(tobj),object position y(tobj),object position z(tobj),10,abs(lvy#)*100,0)
+else
+if abs(lvy#)>20 then tmpsnd=play3dsound("audiobank\materials\17wadinga"+str$(rndrange(1,4))+".wav",object position x(tobj),object position y(tobj),object position z(tobj),10,abs(lvy#)*100,0)
+endif
+if tmpsnd>0
+tfreq=soundonce(lastsoundoid).freq+rnd(20000)
+tfreq=redusevalue(tfreq,4000,sound speed(tmpsnd))
+soundonce(lastsoundoid).freq=tfreq
+set sound speed tmpsnd,tfreq
+inc wading
+endif
+endif
+phy(p).underwater=1
+
+endif
+endif
+
+if density#<waterdensity#
+dyn enable gravity tobj,0
+dyn set angular damping tobj,0.25+density# `0.25
+dyn set linear damping tobj,1+density# `1.5
+else
+dyn enable gravity tobj,1
+dyn set angular damping tobj,3/density# `0.25
+dyn set linear damping tobj,3/density# `1.5
+endif
+endif
+
+
+`````````````
+`slide sound
+if phy(p).underwater=0
+
+e=findentobj(tobj)
+if e>0 then m=myentityd(e).phy.material else m=0
+dec m
+if m>gmaterialmax then m=gmaterialmax
+if m<0 then m=0
+
+if m>0
+tmpsnd=0
+if phy(p).ground=1
+if abs(lvd#)>50 and abs(lvy#)<10
+tmpsnd=play3dsound(material(m).scrape$,object position x(tobj),object position y(tobj),object position z(tobj),1,(lvd#*10),0)
+endif
+endif
+if tmpsnd>0
+tsize#=max(object size x(tobj),object size y(tobj)) : tsize#=100-((max(tsize#,object size z(tobj)))*40)
+tsndspd#=sound speed(tmpsnd)*0.5
+tfreq=(sound speed(tmpsnd)-tsize#)+rnd(tsndspd#)-abs(lvd#*0.35)
+tfreq=redusevalue(tfreq,4000,sound speed(tmpsnd))
+soundonce(lastsoundoid).freq=tfreq
+set sound speed tmpsnd,tfreq
+endif
+endif
+
+if (lvy#)>10 then phy(p).ground=0
+
+endif
+
+``````````````
+
+`if object in screen(tobj)=1
+`if dyn is sleeping(tobj)=1
+`center text object screen x(tobj),object screen y(tobj),"ZZZzzz"+str$(density#)
+`else
+`center text object screen x(tobj),object screen y(tobj),"O_o"+str$(density#)
+`endif
+`endif
+
+endif
+next p
+dyn set force mode 0
+
+
+empty array phycollide()
+repeat
+objA = DYN CONTACT GET ACTOR A()
+objB = DYN CONTACT GET ACTOR B()
+flag = DYN CONTACT GET FLAG()
+array insert at bottom phycollide()
+od=array count(phycollide())
+phycollide(od).phya=objA : phycollide(od).phyb=objB : phycollide(od).flag=flag
+until DYN CONTACT GET DATA()=0
+
+for od=1 to array count(phycollide())
+obja=phycollide(od).phya : objB=phycollide(od).phyb : flag=phycollide(od).flag
+dyn get linear velocity obja,Dynpos
+
+lvx#=x vector3(Dynpos) : lvy#=y vector3(Dynpos) : lvz#=z vector3(Dynpos)
+lvd#=distance(0,0,0,lvx#,lvy#,lvz#)
+dyn get angular velocity obja,Dynpos : avx#=x vector3(Dynpos) : avy#=y vector3(Dynpos) : avz#=z vector3(Dynpos)
+
+e=findentobj(obja)
+if e>0 then m=myentityd(e).phy.material else m=0
+tunderwater=0
+tground=0
+
+p=findphyobj(obja)
+if p>0
+if flag=4 then phy(p).ground=0 else phy(p).ground=1
+if tunderwater>0 then phy(p).ground=0
+tground=phy(p).ground
+endif
+
+dec m
+if m>gmaterialmax then m=gmaterialmax
+if m<0 then m=0
+
+if m>0
+
+tmpsnd=0
+if abs(lvd#)>15 and abs(lvy#)>7 and tground=0
+tmpsnd=play3dsound(material(m).impact$,object position x(obja),object position y(obja),object position z(obja),10,(lvd#*100),0)
+endif
+
+if tmpsnd>0
+tsize#=(object size x(obja)+object size y(obja)+object size z(obja))
+tsize#=100-(tsize#*90)
+tsndspd#=sound speed(tmpsnd)*0.5
+tfreq=(sound speed(tmpsnd)+tsize#)+rnd(tsndspd#)-abs(lvd#*0.35)
+tfreq=redusevalue(tfreq,4000,sound speed(tmpsnd))
+soundonce(lastsoundoid).freq=tfreq
+set sound speed tmpsnd,tfreq
+endif
+
+endif
+
+next od
+
+
+endfunction
+
+function findphyobj(obj)
+for p=1 to array count(phy())
+if phy(p).obj=obj then exitfunction p
+next p
+endfunction 0
+
+function useforceatpoint(obj,a#,b#)
+position object positioncube,object position x(obj)+object collision center x(obj),object position y(obj)+object collision center y(obj),object position z(obj)+object collision center z(obj)
+rotate object positioncube,object angle x(obj),object angle y(obj),object angle z(obj)
+if object size x(obj)=>object size z(obj)
+
+move object right positioncube,object size x(obj)*a#
+if object size z(obj)=>object size y(obj)
+move object positioncube,object size z(obj)*b#
+else
+move object up positioncube,object size y(obj)*b#
+endif
+
+else
+
+move object positioncube,object size x(obj)*a#
+if object size x(obj)=>object size y(obj)
+move object right positioncube,object size x(obj)*b#
+else
+move object up positioncube,object size y(obj)*b#
+endif
+
+endif
+endfunction
+
+function findphycollide(obj,ret)
+if objectexist(obj)=1
+for od=1 to array count(phycollide())
+if phycollide(od).phya=obj then sobj=phycollide(od).phyb
+if phycollide(od).phyb=obj then sobj=phycollide(od).phya
+flag=phycollide(od).flag
+if sobj>0
+if ret=0 then exitfunction sobj
+if ret=1 then exitfunction flag
+if ret=2 then exitfunction od
+endif
+next od
+endif
+endfunction 0
+
+function dynamix_peakobj()
+if objectexist(plrpickobj)>0
+text screen width()*0.5,screen height()*0.5,"Raycast"+str$(plrpickobj)+"]["+str$(DYN GET GROUP(plrpickobj))+"]"
+move camera 50
+opx#=object position x(plrpickobj)+object collision center x(plrpickobj)
+opy#=object position y(plrpickobj)+object collision center y(plrpickobj)
+opz#=object position z(plrpickobj)+object collision center z(plrpickobj)
+
+lvx#=(camera position x()-opx#)*20
+lvy#=(camera position y()-opy#)*20
+lvz#=(camera position z()-opz#)*20
+
+`dyn set position tobj,camera position x(),camera position y(),camera position z()
+if dyn get group(plrpickobj)<>4
+dyn set linear velocity plrpickobj,lvx#,lvy#,lvz#
+else
+dyn kinematic move pos plrpickobj,camera position x(),camera position y(),camera position z()
+endif
+move camera -50
+if keypressed(20)=1 then plrpickobj=0
+endif
+endfunction
+
+
+_ode_loadmateriallist_init:
+
+type materialsettingstype
+ name$ as string
+ tred0$ as string
+ tred1$ as string
+ tred2$ as string
+ tred3$ as string
+ noise as integer
+ scrape$ as string
+ scrapeid as integer
+ impact$ as string
+ impactid as integer
+ destroy$ as string
+ destroyid as integer
+ freq as integer
+ decal$ as string
+ decalid as integer
+ usedinlevel as integer
+endtype
+
+dim material(100) as materialsettingstype
+global gmaterialmax=0
+
+
+`
+rem load material list
+tfile$="audiobank\materials\materialdefault.txt"
+if file exist(tfile$)=1
+ `
+ rem Load Data from file
+
+ dim data$(countlines(tfile$))
+ load array tfile$,data$()
+ for l=0 to 999
+  line$=data$(l)
+  if len(line$)>0
+   if fast lower$(left$(line$,4))=";end" then exit
+   if left$(line$,1)<>";"
+    `
+    rem take fieldname and values
+    for c=0 to len(line$)
+     if mid$(line$,c)="=" then mid=c : exit
+    next c
+    field$=fast lower$(removeedgespaces(left$(line$,mid-1)))
+    value$=removeedgespaces(right$(line$,len(line$)-mid))
+    for c=0 to len(value$)
+     if mid$(value$,c)="," then mid=c : exit
+    next c
+    value1=val(removeedgespaces(left$(value$,mid-1)))
+    value2$=removeedgespaces(right$(value$,len(value$)-mid))
+    if len(value2$)>0 then value2=val(value2$) else value2=-1
+    `
+    rem load max materials
+    tryfield$="materialmax"
+    if field$=tryfield$
+     gmaterialmax=value1
+     if gmaterialmax<18 then gmaterialmax=18 : rem V118 - BETA11 - water uses this in code!
+     dim material(gmaterialmax) as materialsettingstype
+    endif
+    `
+    rem load material data
+    for m=0 to gmaterialmax
+     tryfield$="matdesc"+str$(m) : if field$=tryfield$ then material(m).name$=value$
+     tryfield$="matwave"+str$(m) : if field$=tryfield$ then material(m).tred0$=value$
+     tryfield$="matwaves"+str$(m) : if field$=tryfield$ then material(m).scrape$=value$
+     tryfield$="matwavei"+str$(m) : if field$=tryfield$ then material(m).impact$=value$
+     tryfield$="matwaved"+str$(m) : if field$=tryfield$ then material(m).destroy$=value$
+     tryfield$="matfreq"+str$(m) : if field$=tryfield$ then material(m).freq=value1
+     tryfield$="matdecal"+str$(m) : if field$=tryfield$ then material(m).decal$=value$
+    next m
+    `
+   endif
+  endif
+ next l
+ undim data$()
+endif
+`
+rem Fill in material defaults if info lacking
+for m=0 to gmaterialmax
+ material(m).tred1$=left$(material(m).tred0$,len(material(m).tred0$)-4)+"A1.wav"
+ material(m).tred2$=left$(material(m).tred0$,len(material(m).tred0$)-4)+"A2.wav"
+ material(m).tred3$=left$(material(m).tred0$,len(material(m).tred0$)-4)+"A3.wav"
+ material(m).tred0$=left$(material(m).tred0$,len(material(m).tred0$)-4)+"A4.wav"
+ if material(m).freq=0 then material(m).freq=22000
+next m
+`
+return

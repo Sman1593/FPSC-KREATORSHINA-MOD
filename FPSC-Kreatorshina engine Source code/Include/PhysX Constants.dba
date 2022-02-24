@@ -1,0 +1,139 @@
+Rem ***** Included Source File *****
+
+//*********************************************************************//
+//************************** PHYSX CONSTANTS **************************//
+//*********************************************************************//
+
+//-- VISUALISATION
+#constant NX_VISUALIZATION_SCALE 9
+#constant NX_VISUALIZE_COLLISION_SHAPES 39
+#constant NX_VISUALIZE_CLOTH_MESH 63
+#constant NX_VISUALIZE_FLUID_POSITION 53
+#constant NX_VISUALIZE_FLUID_EMITTERS 52
+#constant NX_FF_VISUALIZATION 1
+#constant NX_VISUALIZE_FORCE_FIELDS 91
+#constant NX_VISUALIZE_COLLISION_SKELETONS 51
+
+//-- CCD 
+#constant NX_CONTINUOUS_CD 8 
+
+//-- ACTOR FLAGS
+#constant NX_AF_DISABLE_COLLISION 1
+#constant NX_AF_FLUID_DISABLE_COLLISION 8
+#constant NX_AF_DISABLE_RESPONSE 2
+
+//-- BODY FLAGS
+#constant NX_BF_DISABLE_GRAVITY 1
+#constant NX_BF_FROZEN_POS_X 2
+#constant NX_BF_FROZEN_POS_Y 4 
+#constant NX_BF_FROZEN_POS_Z 8
+#constant NX_BF_FROZEN_ROT_X 16
+#constant NX_BF_FROZEN_ROT_Y 32
+#constant NX_BF_FROZEN_ROT_Z 64
+#constant NX_BF_FROZEN_POS 14
+#constant NX_BF_FROZEN_ROT 112
+#constant NX_BF_FROZEN 126
+#constant NX_BF_KINEMATIC 128
+#constant NX_BF_VISUALIZATION 256
+
+//-- CLOTH 
+#constant NX_CLF_PRESSURE 1
+#constant NX_CLF_STATIC 2
+#constant NX_CLF_DISABLE_COLLISION 4
+#constant NX_CLF_VISUALIZATION 16
+#constant NX_CLF_GRAVITY 32
+#constant NX_CLF_BENDING 64
+#constant NX_CLF_BENDING_ORTHO 128
+#constant NX_CLF_DAMPING 256
+#constant NX_CLF_COMDAMPING 16384
+#constant NX_CLF_COLLISION_TWOWAY 512
+#constant NX_CLF_TEARABLE 4096
+#constant NX_CLF_HARDWARE 8192
+#constant NX_CLF_SELFCOLLISION 8 
+#constant NX_CLF_VALIDBOUNDS 32768 
+#constant NX_CLOTH_ATTACHMENT_TWOWAY 1
+#constant NX_CLOTH_ATTACHMENT_TEARABLE 2
+
+//-- CLOTH MESH   
+#constant NX_CLOTH_MESH_TEARABLE 256
+
+//-- SOFT BODY
+#constant NX_SBF_STATIC 2
+#constant NX_SBF_DISABLE_COLLISION 4
+#constant NX_SBF_SELFCOLLISION 8
+#constant NX_SBF_VISUALIZATION 16
+#constant NX_SBF_GRAVITY 32
+#constant NX_SBF_VOLUME_CONSERVATION 64
+#constant NX_SBF_DAMPING  128
+#constant NX_SBF_COLLISION_TWOWAY 256
+#constant NX_SBF_HARDWARE 1024
+#constant NX_SBF_COMDAMPING 2048
+#constant NX_SBF_FLUID_COLLISION 8192
+#constant NX_SBF_DISABLE_DYNAMIC_CCD 16384
+#constant NX_SBF_ADHERE 32768
+#constant NX_SBF_HARD_STRETCH_LIMITATION 1048576
+
+//-- SOFT BODY MESH
+#constant NX_VISUALIZE_SOFTBODY_MESH 83
+
+//-- PICK
+#constant NGT_ALL 15                               
+
+//-- CHARACTER CONTROLLER
+#constant NXCC_COLLISION_DOWN 4
+#constant NXCC_COLLISION_UP 2
+#constant NXCC_COLLISION_SIDES 1
+
+//-- CONTACTS
+#constant NX_NOTIFY_ON_START_TOUCH 2
+#constant NX_NOTIFY_ON_END_TOUCH 4
+#constant NX_NOTIFY_ON_TOUCH 8
+
+//-- FLUIDS / PARTICLES
+#constant NX_FF_DISABLE_GRAVITY 2
+#constant NX_FF_ENABLED 8
+#constant NX_FF_HARDWARE 16
+#constant NX_F_STATIC 1  
+#constant NX_F_DYNAMIC 2
+#constant NX_F_SPH 1
+#constant NX_F_NO_PARTICLE_INTERACTION 2
+#constant NX_F_MIXED_MODE 4
+
+//-- SHAPE FLAGS
+#constant NX_SF_FLUID_DRAIN 256
+#constant NX_SF_VISUALIZATION 8
+#constant NX_SF_FLUID_DISABLE_COLLISION 1024
+
+//-- FORCE FIELDS
+#constant NX_FFC_CARTESIAN 0
+#constant NX_FFC_SPHERICAL 1
+#constant NX_FFC_CYLINDRICAL 2
+#constant NX_FFC_TOROIDAL 3
+
+//-- SKIN WIDTH
+#constant NX_SKIN_WIDTH 1
+
+//-- JOINTS
+#constant NX_VISUALIZE_JOINT_WORLD_AXES 28
+#constant NX_VISUALIZE_JOINT_LIMITS 29
+//-- JOINT DESC
+#constant NX_JF_VISUALIZATION 2
+#constant NX_JF_COLLISION_ENABLED 1
+#constant NX_D6JOINT_MOTION_FREE 2
+#constant NX_D6JOINT_MOTION_LOCKED 0
+
+//-- GENERAL
+#constant NX_VISUALIZE_BODY_LIN_VELOCITY 13
+
+//-- RAYCAST
+#constant NX_ALL_SHAPES 3
+#constant NX_STATIC_SHAPES 1
+#constant NX_DYNAMIC_SHAPES 2
+
+//-- TRIGGER
+#constant NX_TRIGGER_ON_ENTER 1
+#constant NX_TRIGGER_ON_LEAVE 2
+#constant NX_TRIGGER_ON_STAY 4
+
+//-- v1.11
+#constant NX_IGNORE_PAIR 1

@@ -1,0 +1,988 @@
+rem ***** included source file *****
+
+Rem Hockeykid - 250210 - Entity DarkAI
+type darkaitype
+ Rem save game
+ daidestx as float
+ daidestz as float
+ daihasdest as integer
+ Rem Misc
+ control as integer
+ follow as integer
+ isdoor as integer
+ aistop as integer
+ state as integer
+ running as boolean
+ action as integer
+ strafebuildup as integer
+ runbuildup as integer
+ useaim as integer
+ aiy as float
+ throwing as integer
+ active as integer
+ Rem Paths
+ path as integer
+ Rem Action mode
+ actionmode as integer
+ Rem Alert flags
+ ehit as integer
+ ambushed as integer
+ ambushx# as float
+ ambushy# as float
+ ambushz# as float
+ beenhurt as integer
+ autoattackoff as integer
+ Rem Delay Timers
+ delay as integer
+ delay2 as integer
+ Rem Waypoints
+ waypointstart as integer
+ waypointfinish as integer
+ waypointcurrent as integer
+ waypointlast as integer
+ waypointindex as integer
+ waypointinc as integer
+ Rem Call Teammates
+ called as integer
+ calldelay as integer
+ calldelay2 as integer
+ Rem Safe Zones
+ issafezone as integer
+ Rem Sounds
+ hearingrange as integer
+ Rem Teams
+ team as integer
+ Rem Melee
+ meleedamage as integer
+ Rem Cover
+ movingtocover as integer
+ coverx as float
+ coverz as float
+endtype
+
+type staticobjectsdata
+obj as integer
+x as float
+y as float
+z as float
+rx as integer
+ry as integer
+rz as integer
+occlusionobj as integer
+material as string
+endtype
+
+global laststaticobject as integer
+
+rem waypoint component of entity element
+type aiwaypointtype
+state as integer
+current as integer
+tracker as integer
+direction as integer
+timefrom as dword
+xstart as float
+ystart as float
+zstart as float
+xinc as float
+yinc as float
+zinc as float
+timeslice as dword
+endtype
+
+rem ai component of entity element
+type aistatustype
+libinit as integer
+libmain as integer
+libdestroy as integer
+libshoot as integer
+libindex as integer
+state$ as string rem gui-x9 (string states)
+statea$ as string
+stateb$ as string
+statec$ as string
+stated$ as string
+statee$ as string
+statef$ as string
+stateg$ as string
+stateh$ as string
+statei$ as string
+statej$ as string
+statek$ as string
+statel$ as string
+statem$ as string
+staten$ as string
+stateo$ as string
+statep$ as string
+stateq$ as string
+stater$ as string
+states$ as string
+statet$ as string
+stateu$ as string
+statev$ as string
+statew$ as string
+statex$ as string
+statey$ as string
+statez$ as string
+alphafade as float
+destalphafade as float
+alphafadeupdate as integer
+headangle as float
+headdestangle as float
+headdownangle as float
+waypoint as aiwaypointtype
+usinginternalai as integer
+oldstate$ as string rem gui-x9 (string states)
+oldstatea$ as string
+oldstateb$ as string
+oldstatec$ as string
+oldstated$ as string
+oldstatee$ as string
+oldstatef$ as string
+oldstateg$ as string
+oldstateh$ as string
+oldstatei$ as string
+oldstatej$ as string
+oldstatek$ as string
+oldstatel$ as string
+oldstatem$ as string
+oldstaten$ as string
+oldstateo$ as string
+oldstatep$ as string
+oldstateq$ as string
+oldstater$ as string
+oldstates$ as string
+oldstatet$ as string
+oldstateu$ as string
+oldstatev$ as string
+oldstatew$ as string
+oldstatex$ as string
+oldstatey$ as string
+oldstatez$ as string
+oldalphafade as float
+oldwaypointstate as integer
+headshot as integer
+oldanimframe as float
+olddestanimframe as float
+endtype
+
+` fpgc pause mode globals
+`dim frozenframes#(65535)
+type frozen
+frames as integer
+endtype
+
+type entitylighttype
+index as integer
+islit as integer
+color as dword
+range as integer
+offsetup as integer
+offsetz as integer
+endtype
+
+rem decal particle structure
+type decalparticletype
+offsety as float
+scale as integer
+randomstartx as float
+randomstarty as float
+randomstartz as float
+linearmotionx as float
+linearmotiony as float
+linearmotionz as float
+randommotionx as float
+randommotiony as float
+randommotionz as float
+mirrormode as integer
+camerazshift as float
+scaleonlyx as float
+lifeincrement as float
+alphaintensity as float
+rem v118 - 060810 - knxrb - decal animation setting (added animation choice setting).
+animated as integer
+endtype
+global gotparticle as decalparticletype
+
+type entitytriggertype
+areax1 as integer
+areax2 as integer
+areay1 as integer
+areay2 as integer
+areaz1 as integer
+areaz2 as integer
+endtype
+
+rem entity element custom profile data
+type entityeleproftype
+name$ as string
+aiinit$ as string
+aiinit as integer
+aimain$ as string
+aimain as integer
+aidestroy$ as string
+aidestroy as integer
+aishoot$ as string
+aishoot as integer
+usekey$ as string
+ifused$ as string
+ifusednear$ as string
+scale as float
+coneheight as float
+coneangle as float
+uniqueelement as integer
+texd$ as string
+texdid as integer
+texaltd$ as string
+texaltdid as integer
+tex1id as integer
+tex2id as integer
+tex3id as integer
+tex4id as integer
+texidmax as integer
+effect$ as string
+usingeffect as integer
+transparency as integer
+strength as integer
+isimmobile as integer
+cantakeweapon as integer
+hasweapon$ as string
+hasweapon as integer
+quantity as integer
+isobjective as integer
+lives as integer
+markerindex as integer
+light as entitylighttype
+trigger as entitytriggertype
+basedecal$ as string
+particleoverride as integer
+particle as decalparticletype
+soundset$ as string
+soundset1$ as string
+spawnatstart as integer
+spawnmax as integer
+spawnupto as integer
+spawnafterdelay as integer
+spawnwhendead as integer
+spawndelay as integer
+spawnqty as integer
+spawndelayrandom as integer
+spawnqtyrandom as integer
+spawnvel as integer
+spawnvelrandom as integer
+spawnangle as integer
+spawnanglerandom as integer
+spawnlife as dword
+hurtfall as integer
+castshadow as integer
+reducetexture as integer
+speed as integer
+rateoffire as integer
+damage as integer
+accuracy as integer
+reloadqty as integer
+fireiterations as integer
+lifespan as float
+throwspeed as float
+throwangle as float
+bounceqty as integer
+explodeonhit as integer
+weaponisammo as integer
+spare1 as dword
+physics as integer
+phyalways as integer
+phyweight as integer
+phyfriction as integer
+phyforcedamage as integer
+rotatethrow as integer
+explodable as integer
+explodedamage as integer
+phydw1 as dword
+phydw2 as dword
+phydw3 as dword
+phydw4 as dword
+phydw5 as dword
+endtype
+
+rem spawn component of entity element
+type spawntype
+atstart as integer
+max as integer
+delay as integer
+qty as integer
+upto as integer
+afterdelay as integer
+whendead as integer
+delayrandom as integer
+qtyrandom as integer
+vel as integer
+velrandom as integer
+angle as integer
+anglerandom as integer
+life as dword
+leader as integer
+leadercount as float
+leaderid as integer
+x as float
+y as float
+z as float
+endtype
+
+rem entity elements data
+type entitytype
+enterwater as integer
+isflak as integer
+darkai as darkaitype
+curvcmx as integer
+curvcmy as integer
+curvcmz as integer
+spine as integer
+spiner as float
+spineraim as float
+eyeoffset as integer
+aimoved as integer
+aimovex as float
+aimovez as float
+ttarget as integer
+etimer as integer rem hockeykid - 250210 - added entity variable for etimer
+etimerpaused as integer rem v118 - 120810 - knxrb - etimer fix from scene commander
+lastdamagetimer as integer
+lastdamagepaused as integer
+editorfixed as integer
+servercontrolled as integer
+fakeplrindex as integer
+active as integer
+dormant as integer
+eleprof as entityeleproftype
+`mover as movertype
+ai as aistatustype
+spawn as spawntype
+`force as forcetype
+maintype as integer
+bankindex as integer
+profileobj as integer
+staticflag as integer
+obj as integer
+phyobj as integer
+lod1obj as integer
+lod2obj as integer
+lod3obj as integer
+attachmentobj as integer
+attachmentbaseobj as integer
+attachmentweapontype as integer
+attachmentobjfirespotlimb as integer
+attachmentblobobj as integer
+x as float
+y as float
+z as float
+rx as float
+ry as float
+rz as float
+norotate as integer
+nogravity as integer
+dry as float
+floorposy as float
+colr as integer
+colg as integer
+colb as integer
+limbslerp as integer
+logiccount as float
+logiccountburst as integer
+logictimestamp as dword
+priorityai as integer
+priorityduration as integer
+raycastcount as integer
+raycastlaststate as integer
+nofloorlogic as integer
+crouchprofile as integer
+plrdist as float
+decalindex as integer
+decalmode as integer
+decalloop as float
+decalslotused as integer
+decalsizex as float
+decalsizey as float
+animset as integer
+animdir as integer
+animdo as integer
+animtime as integer
+animframe as float
+animspeed as float
+animonce as integer
+destanimframe as float
+animframeupdate as integer
+spinrate as integer
+spinvalue as float
+floatrate as integer
+floatvalue as float
+possibletarget as integer
+actualtarget as integer
+realtarget as integer
+targetinway as integer
+losttargetcount as integer
+actualtargetx as float
+actualtargety as float
+actualtargetz as float
+plrtrailindex as integer
+fakeplayerid as integer
+strafemode as integer
+currentweapon as integer
+currentclipammo as integer
+currentammo as integer
+fireweapon as float
+fireweapontimer as integer
+firestrength as integer
+firesoundloop as integer
+firesoundloopremote as integer
+firesoundlooptime as dword
+health as integer
+lifecode as integer
+beenkilled as integer
+shotdamage as integer
+shotdamagesource as integer
+shotdamagetype as integer
+rem scene commander, changed for timer system
+delaydamagecount as float
+delaydamagetimer as float
+delaydamagesource as integer
+delaydamage as integer
+delayimpact as integer
+delaydamagex# as float
+delaydamagey# as float
+delaydamagez# as float
+delaydir as integer
+collected as integer
+activated as integer
+collisionactive as integer
+invincibleactive as integer
+blockedby as integer
+blockedtox as integer
+blockedtoy as integer
+blockedtoz as integer
+soundset as integer
+soundset1 as integer
+soundlooping as integer
+soundistalking as integer
+alttextureused as integer
+videotexture as integer
+ragdollon as integer
+allowragdoll as integer
+reserve1 as integer
+reserve2 as integer
+reserve3 as integer
+reserve4 as integer
+reserve5 as integer
+rem airmod - new entity info >>
+lastdamagex# as float
+lastdamagey# as float
+lastdamagez# as float
+nobulletcol as boolean
+isaltammo as integer
+rem airmod - done <<<
+hideshadow as integer
+floorpositiony as float
+animatespeed as float rem set animate command speed (markblosser)
+entitydammult# as float rem scene commander
+ishidden as integer rem scene commander
+cullstate as integer rem scene commander
+usefade as boolean rem scene commander
+onradar as integer rem scene commander
+radardistance as integer
+rem scene commander scaling/both limb and overall.
+lc as integer
+rc as integer
+lf as integer
+rf as integer
+lt as integer
+rt as integer
+lh as integer
+rh as integer
+lfa as integer
+rfa as integer
+lua as integer
+rua as integer
+spine2 as integer
+sp3 as integer
+neck as integer
+shotby as integer
+shotbyammo$ as string
+isimmune as integer
+camuse as integer
+camoffsetx as integer
+camoffsety as integer
+camoffsetz as integer
+offsetanglex as float
+offsetangley as float
+offsetanglez as float
+camrotx as integer
+camroty as integer
+camrotz as integer
+positionchanged as integer
+cullimmobile as integer
+isanobjective as integer
+objectiveradarrange as integer
+objectivecurrentrange as integer
+entityacc as integer
+soundplaying as integer
+frozen as frozen
+distance as integer
+delaydestroy as integer
+delaydestroytimer as integer
+delaytimeactive as integer
+
+endtype
+
+type entityprofiletype
+aiinit$ as string
+aimain$ as string
+aidestroy$ as string
+aishoot$ as string
+soundset$ as string
+soundset1$ as string
+usekey$ as string
+ifused$ as string
+ifusednear$ as string
+spawnatstart as integer
+spawnmax as integer
+spawnupto as integer
+spawnafterdelay as integer
+spawnwhendead as integer
+spawndelay as integer
+spawnqty as integer
+spawndelayrandom as integer
+spawnqtyrandom as integer
+spawnvel as integer
+spawnvelrandom as integer
+spawnangle as integer
+spawnanglerandom as integer
+spawnlife as dword
+model$ as string
+offx as float
+offy as float
+offz as float
+rotx as float
+roty as float
+rotz as float
+scale as float
+fixnewy as float
+forwardfacing as integer
+defaultheight as float
+defaultstatic as integer
+collisionmode as integer
+materialindex as integer
+debrisshapeindex as integer
+coneheight as float
+coneangle as float
+hurtfall as integer
+texpath$ as string
+texd$ as string
+texdid as integer
+texaltd$ as string
+texaltdid as integer
+tex1id as integer
+tex2id as integer
+tex3id as integer
+tex4id as integer
+texidmax as integer
+effect$ as string
+usingeffect as integer
+castshadow as integer
+transparency as integer
+reducetexture as integer
+strength as integer
+lives as integer
+speed as integer
+isimmobile as integer
+ischaracter as integer
+cantakeweapon as integer
+isweapon$ as string
+isweapon as integer
+isammo as integer
+hasweapon$ as string
+hasweapon as integer
+ishealth as integer
+isflak as integer
+limbmax as integer
+headlimb as integer
+spine as integer
+spine2 as integer
+firespotlimb as integer
+animmax as integer
+footfallmax as integer
+quantity as integer
+ismarker as integer
+markerindex as integer
+islightmarker as integer
+isobjective as integer
+light as entitylighttype
+trigger as entitytriggertype
+decalmax as integer
+bloodscorch as integer
+rateoffire as integer
+damage as integer
+accuracy as integer
+reloadqty as integer
+fireiterations as integer
+lifespan as float
+throwspeed as float
+throwangle as float
+bounceqty as integer
+explodeonhit as integer
+weaponisammo as integer
+raisefactor as integer
+physics as integer
+phyalways as integer
+phyweight as integer
+phyfriction as integer
+phyforcedamage as integer
+rotatethrow as integer
+explodable as integer
+explodedamage as integer
+headframestart as integer
+headframefinish as integer
+decaloffsetangle as float
+decaloffsetdist as float
+decaloffsety as float
+noragdoll as integer
+nothrowscript as integer
+reserve2 as integer
+reserve3 as integer
+reserve4 as integer
+reserve5 as integer
+custombiped as boolean
+rem scene commander scaling/both limb and overall.
+lc as integer
+rc as integer
+lf as integer
+rf as integer
+lt as integer
+rt as integer
+lh as integer
+rh as integer
+lfa as integer
+rfa as integer
+lua as integer
+rua as integer
+sp3 as integer
+neck as integer
+endtype
+
+`"mapbank\testmap\map.ele"
+`versionnumbersupported=218
+function loadentity()
+global entityelementlist
+`levelfolder$="levelbank\testlevel"
+elementsfilename$="mapbank\testmap\map.ele"
+levelmapptah$="mapbank\testmap\map.ent"
+if file exist(elementsfilename$)=0 and file exist(levelmapptah$)=0
+elementsfilename$="levelbank\testlevel\universe.ele"
+levelmapptah$="levelbank\testlevel\map.ent"
+endif
+
+rem load entity element list
+dw as dword
+failedtoload=0
+versionnumbersupported=218
+if file exist(elementsfilename$)=1
+`
+open to read 1,elementsfilename$
+read file 1,versionnumberload
+if versionnumberload<100
+rem pre-version data - development only
+entityelementlist=versionnumberload
+versionnumberload=100
+else
+read file 1,entityelementlist
+endif
+if versionnumberload<=versionnumbersupported
+if entityelementlist>0
+undim entityelement()
+undim entityshadervar()
+undim entitydebug$()
+entityelementmax=entityelementlist
+dim entityelement(entityelementmax) as entitytype
+dim entityshadervar(entityelementmax,globalselectedshadermax)
+dim entitydebug$(entityelementmax)
+for e=1 to entityelementlist
+`
+rem actual file data
+if versionnumberload>=101
+rem version 1.01
+read file 1,a : entityelement(e).maintype=a
+read file 1,a : entityelement(e).bankindex=a
+read file 1,a : entityelement(e).staticflag=a
+read float 1,a# : entityelement(e).x=a#
+read float 1,a# : entityelement(e).y=a#
+read float 1,a# : entityelement(e).z=a#
+read float 1,a# : entityelement(e).rx=a#
+read float 1,a# : entityelement(e).ry=a#
+read float 1,a# : entityelement(e).rz=a#
+read string 1,a$ : entityelement(e).eleprof.name$=a$
+read string 1,a$ : entityelement(e).eleprof.aiinit$=a$
+read string 1,a$ : entityelement(e).eleprof.aimain$=a$
+read string 1,a$ : entityelement(e).eleprof.aidestroy$=a$
+read file 1,a : entityelement(e).eleprof.isobjective=a
+read string 1,a$ : entityelement(e).eleprof.usekey$=a$
+read string 1,a$ : entityelement(e).eleprof.ifused$=a$
+read string 1,a$ : entityelement(e).eleprof.ifusednear$=a$
+read file 1,a : entityelement(e).eleprof.uniqueelement=a
+read string 1,a$ : entityelement(e).eleprof.texd$=a$
+read string 1,a$ : entityelement(e).eleprof.texaltd$=a$
+read string 1,a$ : entityelement(e).eleprof.effect$=a$
+read file 1,a : entityelement(e).eleprof.transparency=a
+read file 1,a : entityelement(e).editorfixed=a
+read string 1,a$ : entityelement(e).eleprof.soundset$=a$
+read string 1,a$ : entityelement(e).eleprof.soundset1$=a$
+read file 1,a : entityelement(e).eleprof.spawnmax=a
+read file 1,a : entityelement(e).eleprof.spawndelay=a
+read file 1,a : entityelement(e).eleprof.spawnqty=a
+read file 1,a : entityelement(e).eleprof.hurtfall=a
+read file 1,a : entityelement(e).eleprof.castshadow=a
+read file 1,a : entityelement(e).eleprof.reducetexture=a
+read file 1,a : entityelement(e).eleprof.speed=a
+read string 1,a$ : entityelement(e).eleprof.aishoot$=a$
+read string 1,a$ : entityelement(e).eleprof.hasweapon$=a$
+read file 1,a : entityelement(e).eleprof.lives=a
+read file 1,a : entityelement(e).spawn.max=a
+read file 1,a : entityelement(e).spawn.delay=a
+read file 1,a : entityelement(e).spawn.qty=a
+read float 1,a# : entityelement(e).eleprof.scale=a#
+read float 1,a# : entityelement(e).eleprof.coneheight=a#
+read float 1,a# : entityelement(e).eleprof.coneangle=a#
+read file 1,a : entityelement(e).eleprof.strength=a
+read file 1,a : entityelement(e).eleprof.isimmobile=a
+read file 1,a : entityelement(e).eleprof.cantakeweapon=a
+read file 1,a : entityelement(e).eleprof.quantity=a
+read file 1,a : entityelement(e).eleprof.markerindex=a
+read file 1,a : dw=a : dw=dw+0xff000000 : entityelement(e).eleprof.light.color=dw
+read file 1,a : entityelement(e).eleprof.light.range=a
+read file 1,a : entityelement(e).eleprof.trigger.areax1=a
+read file 1,a : entityelement(e).eleprof.trigger.areay1=a
+read file 1,a : entityelement(e).eleprof.trigger.areaz1=a
+read file 1,a : entityelement(e).eleprof.trigger.areax2=a
+read file 1,a : entityelement(e).eleprof.trigger.areay2=a
+read file 1,a : entityelement(e).eleprof.trigger.areaz2=a
+read string 1,a$ : entityelement(e).eleprof.basedecal$=a$
+endif
+if versionnumberload>=102
+rem version 1.02
+read file 1,a : entityelement(e).eleprof.rateoffire=a
+read file 1,a : entityelement(e).eleprof.damage=a
+read file 1,a : entityelement(e).eleprof.accuracy=a
+read file 1,a : entityelement(e).eleprof.reloadqty=a
+read file 1,a : entityelement(e).eleprof.fireiterations=a
+read file 1,a : entityelement(e).eleprof.lifespan=a
+read float 1,a# : entityelement(e).eleprof.throwspeed=a#
+read float 1,a# : entityelement(e).eleprof.throwangle=a#
+read file 1,a : entityelement(e).eleprof.bounceqty=a
+read file 1,a : entityelement(e).eleprof.explodeonhit=a
+read file 1,a : entityelement(e).eleprof.weaponisammo=a
+read file 1,a : entityelement(e).eleprof.spawnupto=a
+read file 1,a : entityelement(e).eleprof.spawnafterdelay=a
+read file 1,a : entityelement(e).eleprof.spawnwhendead=a
+read file 1,a : entityelement(e).eleprof.spare1=a
+read file 1,a : entityelement(e).eleprof.spare1=a
+read file 1,a : entityelement(e).eleprof.spare1=a
+read file 1,a : entityelement(e).eleprof.spare1=a
+read file 1,a : entityelement(e).eleprof.spare1=a
+read file 1,a : entityelement(e).eleprof.spare1=a
+endif
+if versionnumberload>=103
+rem version 1.03 - v1 draft physics
+read file 1,a : entityelement(e).eleprof.physics=a
+read file 1,a : entityelement(e).eleprof.phyweight=a
+read file 1,a : entityelement(e).eleprof.phyfriction=a
+read file 1,a : entityelement(e).eleprof.phyforcedamage=a
+read file 1,a : entityelement(e).eleprof.rotatethrow=a
+read file 1,a : entityelement(e).eleprof.explodable=a
+read file 1,a : entityelement(e).eleprof.explodedamage=a
+read file 1,a : entityelement(e).eleprof.phydw4=a
+read file 1,a : entityelement(e).eleprof.phydw5=a
+endif
+if versionnumberload>=104
+rem version 1.04 - beta4 extra field
+read file 1,a : entityelement(e).eleprof.phyalways=a
+endif
+if versionnumberload>=105
+rem version 1.05 - beta8 extra fields
+read file 1,a : entityelement(e).eleprof.spawndelayrandom=a
+read file 1,a : entityelement(e).eleprof.spawnqtyrandom=a
+read file 1,a : entityelement(e).eleprof.spawnvel=a
+read file 1,a : entityelement(e).eleprof.spawnvelrandom=a
+read file 1,a : entityelement(e).eleprof.spawnangle=a
+read file 1,a : entityelement(e).eleprof.spawnanglerandom=a
+endif
+if versionnumberload>=106
+rem version 1.06 - beta10 extra fields
+read file 1,a : entityelement(e).eleprof.spawnatstart=a
+read file 1,a : entityelement(e).eleprof.spawnlife=a
+endif
+if versionnumberload>=107
+rem fpscv104rc8 - forgot to save infinilight index (dynamic lights in final build never worked)
+read file 1,a : entityelement(e).eleprof.light.index=a
+endif
+if versionnumberload>=199
+rem x10 extras - ignored in x9
+read file 1,a : `entityelement(e).eleprof.ex.alignment=a
+read file 1,a : `entityelement(e).eleprof.ex.initmode=a
+read file 1,a : `entityelement(e).eleprof.ex.seemode=a
+read file 1,a : `entityelement(e).eleprof.ex.trigmode=a
+read file 1,a : `entityelement(e).eleprof.ex.hurtmode=a
+read file 1,a : `entityelement(e).eleprof.ex.hurtvalue=a
+read file 1,a : `entityelement(e).eleprof.ex.canstrafe=a
+read file 1,a : `entityelement(e).eleprof.ex.canduck=a
+read file 1,a : `entityelement(e).eleprof.ex.canhear=a
+read file 1,a : `entityelement(e).eleprof.ex.loadedweapon=a
+read file 1,a : `entityelement(e).eleprof.ex.attackrange=a
+read file 1,a : `entityelement(e).eleprof.ex.viewrange=a
+read file 1,a : `entityelement(e).eleprof.ex.maxrange=a
+read file 1,a : `entityelement(e).eleprof.ex.texturearray=a
+read file 1,a : `entityelement(e).eleprof.ex.showhealthbar=a
+read file 1,a : `entityelement(e).eleprof.ex.lungcapacity=a
+read file 1,a : `entityelement(e).eleprof.ex.glassstyle=a
+endif
+if versionnumberload>=200
+rem x10 extras 190707 - ignored in x9
+read file 1,a : `entityelement(e).eleprof.ex.score=a
+read file 1,a : `entityelement(e).eleprof.ex.showallyicon=a
+read file 1,a : `entityelement(e).eleprof.ex.factor=a
+read file 1,a : `entityelement(e).eleprof.ex.impactforce=a
+read file 1,a : `entityelement(e).eleprof.ex.decaytime=a
+read file 1,a : `entityelement(e).eleprof.ex.jumpheight=a
+endif
+if versionnumberload>=217
+rem fpgc - 300710 - save new entity element data
+read file 1,a : entityelement(e).eleprof.particleoverride=a
+read file 1,a : entityelement(e).eleprof.particle.offsety=a
+read file 1,a : entityelement(e).eleprof.particle.scale=a
+read file 1,a : entityelement(e).eleprof.particle.randomstartx=a
+read file 1,a : entityelement(e).eleprof.particle.randomstarty=a
+read file 1,a : entityelement(e).eleprof.particle.randomstartz=a
+read file 1,a : entityelement(e).eleprof.particle.linearmotionx=a
+read file 1,a : entityelement(e).eleprof.particle.linearmotiony=a
+read file 1,a : entityelement(e).eleprof.particle.linearmotionz=a
+read file 1,a : entityelement(e).eleprof.particle.randommotionx=a
+read file 1,a : entityelement(e).eleprof.particle.randommotiony=a
+read file 1,a : entityelement(e).eleprof.particle.randommotionz=a
+read file 1,a : entityelement(e).eleprof.particle.mirrormode=a
+read file 1,a : entityelement(e).eleprof.particle.camerazshift=a
+read file 1,a : entityelement(e).eleprof.particle.scaleonlyx=a
+read file 1,a : entityelement(e).eleprof.particle.lifeincrement=a
+read file 1,a : entityelement(e).eleprof.particle.alphaintensity=a
+endif
+if versionnumberload>=218
+rem v118 - 060810 - knxrb - decal animation setting (added animation choice setting).
+read file 1,a : entityelement(e).eleprof.particle.animated=a
+endif
+if versionnumberload<217
+rem fpgc - 300710 - older levels dont use particle override
+entityelement(e).eleprof.particleoverride=0
+endif
+entityelement(e).entitydammult#=1.0
+entityelement(e).entityacc=1.0
+next e
+endif
+else
+`   debugstring(strarr$(101),"")
+failedtoload=1
+endif
+close file 1
+`
+endif
+
+rem load entity bank
+if file exist(levelmapptah$)
+open to read 1,levelmapptah$
+read file 1,entidmaster
+dim entitybank$(entidmaster) as string
+if entidmaster>0
+`gosub _entity_validatearraysize
+dim entityprofile(entidmaster) as entityprofiletype
+for entid=1 to entidmaster
+read string 1,tempstring$ : entitybank$(entid)=tempstring$
+if left$(entitybank$(entid),1)<>"\"
+entitybank$(entid)="entitybank\"+entitybank$(entid)
+else
+entitybank$(entid)="entitybank"+entitybank$(entid)
+endif
+next entid
+endif
+close file 1
+
+for ent=1 to array count(entitybank$())
+binfile$=left$(entitybank$(ent),len(entitybank$(ent))-4)+".bin"
+readbinfile(binfile$,ent)
+next ent
+
+endif
+
+endfunction
+
+function readbinfile(file$,entid)
+if file exist(file$)=1
+rem load binary version of entity profile file
+dim tempe(0) as entityprofiletype
+` if file open(1) then close file 1
+open to read 1,file$
+rem v110 beta5 - 080608 - added version control to entity bin files
+read string 1,tstr$ : read file 1,tversion
+` read string 1,tstr$ : entityprofileheader(entid).desc$=tstr$
+read string 1,tstr$ `: entityprofile(entid).desc$=tstr$
+`if memblock exist(1) then delete memblock 1
+read memblock 1,1
+make array from memblock tempe(0),1
+entityprofile(entid)=tempe(0)
+read string 1,tstr$ : entityprofile(entid).aiinit$=tstr$
+read string 1,tstr$ : entityprofile(entid).aimain$=tstr$
+read string 1,tstr$ : entityprofile(entid).aidestroy$=tstr$
+read string 1,tstr$ : entityprofile(entid).aishoot$=tstr$
+read string 1,tstr$ : entityprofile(entid).soundset$=tstr$
+read string 1,tstr$ : entityprofile(entid).soundset1$=tstr$
+read string 1,tstr$ : entityprofile(entid).usekey$=tstr$
+read string 1,tstr$ : entityprofile(entid).ifused$=tstr$
+read string 1,tstr$ : entityprofile(entid).ifusednear$=tstr$
+
+read string 1,tstr$ : entityprofile(entid).model$=lower$(tstr$)
+if left$(lower$(entityprofile(entid).model$),9)<>"meshbank\" and left$(lower$(file$),20)<>"entitybank\_markers\"
+tl=find last char$(file$,"\")
+entityprofile(entid).model$=left$(file$,tl)+entityprofile(entid).model$
+endif
+
+read string 1,tstr$ : entityprofile(entid).texpath$=tstr$
+read string 1,tstr$ : entityprofile(entid).texd$=tstr$
+if entityprofile(entid).texpath$=""
+tl=find last char$(file$,"\")
+if find last char$(entityprofile(entid).texd$,"\")<0
+entityprofile(entid).texpath$=left$(file$,tl)
+endif
+endif
+
+read string 1,tstr$ : entityprofile(entid).texaltd$=tstr$
+read string 1,tstr$ : entityprofile(entid).effect$=tstr$
+read string 1,tstr$ : entityprofile(entid).isweapon$=tstr$
+read string 1,tstr$ : entityprofile(entid).hasweapon$=tstr$
+for q = 0 to entityprofile(entid).limbmax-1
+`read file 1,entitybodypart(entid,q)
+read file 1,none
+next q
+for q = 0 to entityprofile(entid).animmax-1
+`read file 1,entityanim(entid,q).start
+`read file 1,entityanim(entid,q).finish
+read file 1,none
+read file 1,none
+next q
+for q = 0 to entityprofile(entid).footfallmax-1
+`read file 1,entityfootfall(entid,q).keyframe
+`read file 1,entityfootfall(entid,q).soundtype
+read file 1,none
+read file 1,none
+next q
+for q = 0 to entityprofile(entid).decalmax-1
+`read string 1,entitydecal$(entid,q)
+read file 1,none
+next q
+close file 1
+delete memblock 1
+undim tempe(0)
+endif
+endfunction

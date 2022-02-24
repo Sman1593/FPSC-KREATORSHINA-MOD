@@ -1,0 +1,750 @@
+Rem ***** Included Source File *****
+
+`////////////////////segment optimization
+
+function optimizemeshes()
+dim tempportals(0)
+
+for fseg=0 to array count(fss())
+`meshes optimization
+newstatic=fss(fseg).obj
+tlpx#=fss(fseg).px
+tlpy#=fss(fseg).py
+tlpz#=fss(fseg).pz
+tlax#=fss(fseg).rx
+tlay#=fss(fseg).ry
+tlaz#=fss(fseg).rz
+tlfx#=fss(fseg).offx
+tlfy#=fss(fseg).offy
+tlfz#=fss(fseg).offz
+segmentmesh$=fss(fseg).meshname$
+fss(fseg).texture$=deletealldump(fss(fseg).texture$)
+segtexture$=fss(fseg).texture$
+lay=fss(fseg).lay
+x=fss(fseg).x
+y=fss(fseg).y
+fsega=getsegmentangle(lay,x,y)
+
+if fss(fseg).iscorner>0 or fss(fseg).isoutcorner>0 then fss(fseg).overlay=50
+isbox=fss(fseg).isfloor+fss(fseg).iswall+fss(fseg).isoutwall+fss(fseg).iscorner+fss(fseg).isoutcorner+fss(fseg).isroof
+if isbox=0 then fss(fseg).overlay=51
+if (fss(fseg).isfloor>0 or fss(fseg).isroof>0) and fss(fseg).overlay>0 then fss(fseg).overlay=-1
+
+if fss(fseg).obj>0
+
+if fss(fseg).partmode=1 then newstatic=loadobject(segmentmesh$,segtexture$,0,newstatic)
+
+if fss(fseg).partmode=0
+
+if fss(fseg).csg=1
+osx#=object size x(newstatic) : osz#=object size z(newstatic)
+if osx#<osz#
+if fsega=0 or fsega=3
+updatemesh(newstatic,90)
+fss(fseg).ry=fss(fseg).ry-90
+else
+updatemesh(newstatic,-90)
+fss(fseg).ry=fss(fseg).ry+90
+endif
+endif
+if fsega=2 then updatemesh(newstatic,180) : fss(fseg).ry=fss(fseg).ry+180
+tlay#=fss(fseg).ry
+endif
+
+if fss(fseg).overlay>0 and total object frames(newstatic)>0
+segmentmesh$=optimizelikestatic(segmentmesh$)
+newstatic=loadobject(segmentmesh$,segtexture$,0,newstatic)
+endif
+
+lmb=findlimbwithmesh(newstatic)
+fss(fseg).vertc=getvertexcount(newstatic,lmb)
+
+`if fss(fseg).vertc=24
+`endif
+
+`if fss(fseg).csg=0
+if fss(fseg).isfloor>0 or fss(fseg).isroof>0
+optimizefloormesh(fseg)
+endif
+if fss(fseg).iswall>0 then optimizewallmeshes(fseg,fss(fseg).iswall)
+if fss(fseg).isoutwall>0 then optimizeoutwallmeshes(fseg,fss(fseg).isoutwall)
+endif
+`endif
+
+`timg=loadimage(segtexture$,0)
+`if timg>0 then texture object newstatic,0,timg
+`endif
+
+position object newstatic,tlpx#,tlpy#,tlpz#
+rotate object newstatic,tlax#,tlay#,tlaz#
+sc_setupcomplexobject newstatic,1,2
+
+timg=loadimage(segtexture$,0)
+if timg>0 then texture object newstatic,0,timg
+
+if fss(fseg).partmode=1
+if objectexist(newstatic)=1
+
+array insert at bottom tempportals()
+p=array count(tempportals())
+tempportals(p)=fseg
+
+ccx#=object collision center x(newstatic) : ccy#=object collision center y(newstatic) : ccz#=object collision center z(newstatic)
+osx#=object size x(newstatic) : osy#=object size y(newstatic) : osz#=object size z(newstatic)
+tempcsg=makeobjectbox(osx#,osy#,15)
+offset limb tempcsg,0,ccx#,ccy#,ccz#,1
+
+remstart
+lock vertexdata for limb tempcsg,0
+maxv=get vertexdata vertex count()
+for v=0 to maxv
+px#=get vertexdata position x(v)
+py#=get vertexdata position y(v)
+pz#=get vertexdata position z(v)
+if py#<-40 then py#=-40
+set vertexdata position v,px#,py#,pz#
+next v
+unlock vertexdata
+remend
+
+updatemesh(tempcsg,0)
+position object tempcsg,tlpx#,tlpy#,tlpz#
+rotate object tempcsg,tlax#,tlay#,tlaz#
+csgobj=optimizemesh(tempcsg,csgobj)
+sc_setupobject tempcsg,2,2
+`position object newstatic,fss(fseg).px,fss(fseg).py,fss(fseg).pz
+`rotate object newstatic,fss(fseg).rx,fss(fseg).ry,fss(fseg).rz
+`bigcsgobj=optimizemesh(newstatic,bigcsgobj)
+
+hide object newstatic
+`csgobj=optimizemesh(newstatic,csgobj)
+`delete object newstatic
+`array delete element fss(),fseg
+endif
+endif
+
+endif
+next fseg
+if csgobj>0 then hide object csgobj  `: updatemesh(csgobj,0)
+`if bigcsgobj>0 then hide object bigcsgobj  `: updatemesh(bigcsgobj,0)
+
+`------------Split door frames, doors to put them in zones------
+maxfseg=array count(fss())
+for fseg=0 to maxfseg
+addnewsegment=0
+obj=fss(fseg).obj
+if fss(fseg).partmode=0 and fss(fseg).csg=0
+if objectexist(obj)>0
+if fss(fseg).optimesh$<>""
+mesh$=fss(fseg).optimesh$
+else
+mesh$=fss(fseg).meshname$
+endif
+
+texture$=fss(fseg).texture$
+
+splitA$=newformat(mesh$,".part_a.dbo")
+splitB$=newformat(mesh$,".part_b.dbo")
+
+if fss(fseg).overlay>0 and fss(fseg).isfloor=0 and fss(fseg).isroof=0
+if collidewithportal(obj)>0
+newstatic=splitobject(mesh$,texture$,obj,0)
+if fss(fseg).optimesh$<>""
+fss(fseg).optimesh$=splitA$
+else
+fss(fseg).meshname$=splitA$
+endif
+addnewsegment=77
+endif
+endif
+
+if fss(fseg).isfloor>0
+newstatic=splitobject(mesh$,texture$,obj,1)
+if fss(fseg).optimesh$<>""
+fss(fseg).optimesh$=splitA$
+else
+fss(fseg).meshname$=splitA$
+endif
+addnewsegment=33
+endif
+
+endif
+endif
+
+if addnewsegment>0
+array insert at bottom fss()
+f=array count(fss())
+fss(f).seg=fss(fseg).seg
+fss(f).limb=fss(fseg).limb
+fss(f).obj=newstatic
+fss(f).overlay=fss(fseg).overlay
+fss(f).x=fss(fseg).x
+fss(f).lay=fss(fseg).lay
+fss(f).y=fss(fseg).y
+fss(f).px=fss(fseg).px
+fss(f).py=fss(fseg).py
+fss(f).pz=fss(fseg).pz
+fss(f).rx=fss(fseg).rx
+fss(f).ry=fss(fseg).ry
+fss(f).rz=fss(fseg).rz
+fss(f).osx=fss(fseg).osx
+fss(f).osy=fss(fseg).osy
+fss(f).osz=fss(fseg).osz
+fss(f).vertc=fss(fseg).vertc
+fss(f).csg=fss(fseg).csg
+fss(f).offx=fss(fseg).offx
+fss(f).offy=fss(fseg).offy
+fss(f).offz=fss(fseg).offz
+fss(f).upsize=fss(fseg).upsize
+fss(f).downsize=fss(fseg).downsize
+fss(f).material=fss(fseg).material
+fss(f).colmode=fss(fseg).colmode
+fss(f).texture$=fss(fseg).texture$
+if fss(fseg).optimesh$<>""
+fss(f).optimesh$=splitB$
+fss(f).meshname$=fss(fseg).meshname$
+else
+fss(f).meshname$=splitB$
+fss(f).optimesh$=fss(fseg).optimesh$
+endif
+fss(f).partmode=fss(fseg).partmode
+fss(f).transparency=fss(fseg).transparency
+fss(f).isfloor=fss(fseg).isfloor
+fss(f).iswall=fss(fseg).iswall
+fss(f).isoutwall=fss(fseg).isoutwall
+fss(f).iscorner=fss(fseg).iscorner
+fss(f).isoutcorner=fss(fseg).isoutcorner
+fss(f).isroof=fss(fseg).isroof
+fss(f).overlayexist=fss(fseg).overlayexist
+endif
+
+next fseg
+
+endfunction
+
+
+function splitobject(mesh$,texture$,obj,mode)
+if objectexist(obj)=1
+splitA$=newformat(mesh$,".part_a.dbo")
+splitB$=newformat(mesh$,".part_b.dbo")
+opx#=object position x(obj) : opy#=object position y(obj) : opz#=object position z(obj)
+ocx#=object collision center x(obj) : ocy#=object collision center y(obj) : ocz#=object collision center z(obj)
+oax#=object angle x(obj) : oay#=object angle y(obj) : oaz#=object angle z(obj)
+
+if file exist(splitA$) and file exist(splitB$)
+obj=loadobject(splitA$,texture$,0,obj)
+clone=loadobject(splitB$,texture$,0,0)
+position object obj,opx#,opy#,opz#
+rotate object obj,oax#,oay#,oaz#
+position object clone,opx#,opy#,opz#
+rotate object clone,oax#,oay#,oaz#
+else
+clone=cloneobject(obj)
+tcube=makeobjectcube(10000)
+position object tcube,opx#+ocx#,opy#+ocy#,opz#+ocz#
+rotate object tcube,oax#,oay#,oaz#
+position object clone,opx#,opy#,opz#
+rotate object clone,oax#,oay#,oaz#
+if mode=0 then move object tcube,-5000
+if mode=1 then move object up tcube,-5000
+perform csg intersection obj,tcube
+if mode=0 then move object tcube,10000
+if mode=1 then move object up tcube,10000
+perform csg intersection clone,tcube
+delete object tcube
+updatemesh(obj,0)
+updatemesh(clone,0)
+saveobject(splitA$,obj)
+saveobject(splitB$,clone)
+endif
+
+endif
+endfunction clone
+
+function collidewithportal(obj)
+for p=1 to array count(tempportals())
+pseg=tempportals(p)
+portal=fss(pseg).obj
+`if objectdistance(portal,obj)<object size(obj)
+collide=OBJECT COLLISION(portal,obj)
+if collide>0 then exitfunction portal
+`endif
+next p
+endfunction 0
+
+
+function optimizefloormesh(flseg)
+lay=fss(flseg).lay
+x=fss(flseg).x
+y=fss(flseg).y
+obj=fss(flseg).obj
+meshname$=fss(flseg).meshname$
+texture$=fss(flseg).texture$
+realmaxya#=roundingfloat(object size y(obj),1)
+
+`l
+if arraynotout(lay,x-1,y)=1
+segfl=findstatic(vseg(lay,x-1,y).vis.f)
+if segfl>0
+
+if fss(flseg).py<>fss(segfl).py
+l=1
+else
+realmaxyb#=roundingfloat(object size y(fss(segfl).obj),1)
+if realmaxya#<>realmaxyb# then l=1
+endif
+
+if vseg(lay,x,y).vis.wl>0 and vseg(lay,x,y).vis.overlay=0 then l=0
+endif
+if (vseg(lay,x,y).vis.wl=0 and vseg(lay,x,y).vis.owl=0) and vseg(lay,x-1,y).vis.f=0 then l=1
+if vseg(lay,x-1,y).vis.wr>0 and vseg(lay,x-1,y).vis.overlay=0 then l=0
+if (vseg(lay,x-1,y).vis.wr>0 and vseg(lay,x-1,y).vis.owr>0) and vseg(lay,x-1,y).vis.overlay=1 then l=1
+endif
+`r
+if arraynotout(lay,x+1,y)=1
+segfr=findstatic(vseg(lay,x+1,y).vis.f)
+if segfr>0
+
+if fss(flseg).py<>fss(segfr).py
+r=1
+else
+realmaxyb#=roundingfloat(object size y(fss(segfr).obj),1)
+if realmaxya#<>realmaxyb# then r=1
+endif
+
+if vseg(lay,x,y).vis.wr>0 and vseg(lay,x,y).vis.overlay=0 then r=0
+endif
+if (vseg(lay,x,y).vis.wr=0 and vseg(lay,x,y).vis.owr=0) and vseg(lay,x+1,y).vis.f=0 then r=1
+if vseg(lay,x+1,y).vis.wl>0 and vseg(lay,x+1,y).vis.overlay=0 then r=0
+if (vseg(lay,x+1,y).vis.wl>0 and vseg(lay,x+1,y).vis.owl>0) and vseg(lay,x+1,y).vis.overlay=1 then r=1
+endif
+`f
+if arraynotout(lay,x,y-1)=1
+segff=findstatic(vseg(lay,x,y-1).vis.f)
+if segff>0
+
+if fss(flseg).py<>fss(segff).py
+f=1
+else
+realmaxyb#=roundingfloat(object size y(fss(segff).obj),1)
+if realmaxya#<>realmaxyb# then f=1
+endif
+
+if vseg(lay,x,y).vis.wf>0 and vseg(lay,x,y).vis.overlay=0 then f=0
+endif
+if (vseg(lay,x,y).vis.wf=0 and vseg(lay,x,y).vis.owf=0) and vseg(lay,x,y-1).vis.f=0 then f=1
+if vseg(lay,x,y-1).vis.wb>0 and vseg(lay,x,y-1).vis.overlay=0 then f=0
+if (vseg(lay,x,y-1).vis.wb>0 and vseg(lay,x,y-1).vis.owb>0) and vseg(lay,x,y-1).vis.overlay=1 then f=1
+endif
+`b
+if arraynotout(lay,x,y+1)=1
+segfb=findstatic(vseg(lay,x,y+1).vis.f)
+if segfb>0
+
+if fss(flseg).py<>fss(segfb).py
+b=1
+else
+realmaxyb#=roundingfloat(object size y(fss(segfb).obj),1)
+if realmaxya#<>realmaxyb# then b=1
+endif
+
+if vseg(lay,x,y).vis.wb>0 and vseg(lay,x,y).vis.overlay=0 then b=0
+endif
+if (vseg(lay,x,y).vis.wb=0 and vseg(lay,x,y).vis.owb=0) and vseg(lay,x,y+1).vis.f=0 then b=1
+if vseg(lay,x,y+1).vis.wf>0 and vseg(lay,x,y+1).vis.overlay=0 then b=0
+if (vseg(lay,x,y+1).vis.wf>0 and vseg(lay,x,y+1).vis.owf>0) and vseg(lay,x,y+1).vis.overlay=1 then b=1
+
+endif
+
+if arraynotout(lay-1,x,y)=1
+if vseg(lay,x,y).vis.wb>0 and vseg(lay-1,x,y).vis.wb=0 and segfb=0 then b=1
+if vseg(lay,x,y).vis.wr>0 and vseg(lay-1,x,y).vis.wr=0 and segfr=0 then r=1
+if vseg(lay,x,y).vis.wf>0 and vseg(lay-1,x,y).vis.wf=0 and segff=0 then f=1
+if vseg(lay,x,y).vis.wl>0 and vseg(lay-1,x,y).vis.wl=0 and segfl=0 then l=1
+endif
+
+if arraynotout(lay-1,x,y)=1
+if vseg(lay-1,x,y).vis.owb>0 and vseg(lay,x,y).vis.owb=0 then b=1
+if vseg(lay-1,x,y).vis.owr>0 and vseg(lay,x,y).vis.owr=0 then r=1
+if vseg(lay-1,x,y).vis.owf>0 and vseg(lay,x,y).vis.owf=0 then f=1
+if vseg(lay-1,x,y).vis.owl>0 and vseg(lay,x,y).vis.owl=0 then l=1
+endif
+
+try=fss(flseg).ry/90
+xl=l : xr=r : xf=f : xb=b
+if try=1 then l=xf : r=xb : f=xr : b=xl
+if try=2 then l=xr : r=xl : f=xb : b=xf
+if try=3 then l=xb : r=xf : f=xl : b=xr
+
+cutpoly(meshname$,texture$,obj,(l*-1)+1,(r*-1)+1,(f*-1)+1,(b*-1)+1,0,0)
+endfunction
+
+function optimizewallmeshes(fseg,iswall)
+lay=fss(fseg).lay
+x=fss(fseg).x
+y=fss(fseg).y
+newstatic=fss(fseg).obj
+segmentmesh$=fss(fseg).meshname$
+segtexture$=fss(fseg).texture$
+
+if fss(fseg).csg=1 then segmentmesh$=""
+
+`if get limb count(newstatic)>0 then segmentmesh$=""
+cutleft=0 : cutright=0 : cutback=0 : cutup=0 : cutdown=0
+fsega=getsegmentangle(lay,x,y)
+if arraynotout(lay+1,x,y) then cutup=vseg(lay+1,x,y).vis.f
+cutdown=vseg(lay,x,y).vis.f
+if cutup>1 then cutup=1
+if cutdown>1 then cutdown=1
+
+
+if iswall=1
+if arraynotout(lay,x-1,y)>0 then cutleft=vseg(lay,x-1,y).vis.wb
+if arraynotout(lay,x+1,y)>0 then cutright=vseg(lay,x+1,y).vis.wb
+
+if cutleft=0 then cutleft=vseg(lay,x,y).vis.wl
+if cutright=0 then cutright=vseg(lay,x,y).vis.wr
+if vseg(lay,x,y).vis.owb>0 then cutback=1
+if arraynotout(lay,x,y+1)>0
+if vseg(lay,x,y+1).vis.wf>0 then cutback=1
+endif
+if cutleft>0
+if arraynotout(lay,x-1,y)>0
+wl=findstatic(vseg(lay,x-1,y).vis.wb)
+if (fss(wl).meshname$<>fss(fseg).meshname$) and (fss(wl).texture$<>fss(fseg).texture$) and fss(fseg).leftsize<>fss(wl).rightsize then cutleft=0
+endif
+endif
+if cutright>0
+if arraynotout(lay,x+1,y)>0
+wr=findstatic(vseg(lay,x+1,y).vis.wb)
+if (fss(wr).meshname$<>fss(fseg).meshname$) and (fss(wr).texture$<>fss(fseg).texture$) and fss(fseg).rightsize<>fss(wr).leftsize then cutright=0
+endif
+endif
+
+if arraynotout(lay+1,x,y)>0 then wallup=findstatic(vseg(lay+1,x,y).vis.wb)
+if arraynotout(lay-1,x,y)>0 then walldown=findstatic(vseg(lay-1,x,y).vis.wb)
+if wallup>0
+if fss(fseg).upsize=fss(wallup).downsize then cutup=1
+endif
+if walldown>0
+if fss(fseg).downsize=fss(walldown).upsize then cutdown=1
+endif
+
+endif
+
+if iswall=2
+if arraynotout(lay,x,y+1)>0 then cutleft=vseg(lay,x,y+1).vis.wr
+if arraynotout(lay,x,y-1)>0 then cutright=vseg(lay,x,y-1).vis.wr
+if cutleft=0 then cutleft=vseg(lay,x,y).vis.wb
+if cutright=0 then cutright=vseg(lay,x,y).vis.wf
+if vseg(lay,x,y).vis.owr>0 then cutback=1
+if arraynotout(lay,x+1,y)>0
+if vseg(lay,x+1,y).vis.wl>0 then cutback=1
+endif
+if cutleft>0
+if arraynotout(lay,x,y+1)>0
+wl=findstatic(vseg(lay,x,y+1).vis.wr)
+if (fss(wl).meshname$<>fss(fseg).meshname$) and (fss(wl).texture$<>fss(fseg).texture$) and fss(fseg).leftsize<>fss(wl).rightsize then cutleft=0
+endif
+endif
+if cutright>0
+if arraynotout(lay,x,y-1)>0
+wr=findstatic(vseg(lay,x,y-1).vis.wr)
+if (fss(wr).meshname$<>fss(fseg).meshname$) and (fss(wr).texture$<>fss(fseg).texture$) and fss(fseg).rightsize<>fss(wr).leftsize then cutright=0
+endif
+endif
+
+if arraynotout(lay+1,x,y)>0 then wallup=findstatic(vseg(lay+1,x,y).vis.wr)
+if arraynotout(lay-1,x,y)>0 then walldown=findstatic(vseg(lay-1,x,y).vis.wr)
+if wallup>0
+if fss(fseg).upsize=fss(wallup).downsize then cutup=1
+endif
+if walldown>0
+if fss(fseg).downsize=fss(walldown).upsize then cutdown=1
+endif
+
+endif
+
+if iswall=3
+if arraynotout(lay,x+1,y)>0 then cutleft=vseg(lay,x+1,y).vis.wf
+if arraynotout(lay,x-1,y)>0 then cutright=vseg(lay,x-1,y).vis.wf
+if cutleft=0 then cutleft=vseg(lay,x,y).vis.wr
+if cutright=0 then cutright=vseg(lay,x,y).vis.wl
+if vseg(lay,x,y).vis.owf>0 then cutback=1
+if arraynotout(lay,x,y-1)>0
+if vseg(lay,x,y-1).vis.wb>0 then cutback=1
+endif
+if cutleft>0
+if arraynotout(lay,x+1,y)>0
+wl=findstatic(vseg(lay,x+1,y).vis.wf)
+if (fss(wl).meshname$<>fss(fseg).meshname$) and (fss(wl).texture$<>fss(fseg).texture$) and fss(fseg).leftsize<>fss(wl).rightsize then cutleft=0
+endif
+endif
+if cutright>0
+if arraynotout(lay,x-1,y)>0
+wr=findstatic(vseg(lay,x-1,y).vis.wf)
+if (fss(wr).meshname$<>fss(fseg).meshname$) and (fss(wr).texture$<>fss(fseg).texture$) and fss(fseg).rightsize<>fss(wr).leftsize then cutright=0
+endif
+endif
+
+if arraynotout(lay+1,x,y)>0 then wallup=findstatic(vseg(lay+1,x,y).vis.wf)
+if arraynotout(lay-1,x,y)>0 then walldown=findstatic(vseg(lay-1,x,y).vis.wf)
+if wallup>0
+if fss(fseg).upsize=fss(wallup).downsize then cutup=1
+endif
+if walldown>0
+if fss(fseg).downsize=fss(walldown).upsize then cutdown=1
+endif
+
+endif
+
+if iswall=4
+if arraynotout(lay,x,y-1)>0 then cutleft=vseg(lay,x,y-1).vis.wl
+if arraynotout(lay,x,y+1)>0 then cutright=vseg(lay,x,y+1).vis.wl
+if cutleft=0 then cutleft=vseg(lay,x,y).vis.wf
+if cutright=0 then cutright=vseg(lay,x,y).vis.wb
+if vseg(lay,x,y).vis.owl>0 then cutback=1
+if arraynotout(lay,x-1,y)>0
+if vseg(lay,x-1,y).vis.wr>0 then cutback=1
+endif
+if cutleft>0
+if arraynotout(lay,x,y-1)>0
+wl=findstatic(vseg(lay,x,y-1).vis.wl)
+if (fss(wl).meshname$<>fss(fseg).meshname$) and (fss(wl).texture$<>fss(fseg).texture$) and fss(fseg).leftsize<>fss(wl).rightsize then cutleft=0
+endif
+endif
+if cutright>0
+if arraynotout(lay,x,y+1)>0
+wr=findstatic(vseg(lay,x,y+1).vis.wl)
+if (fss(wr).meshname$<>fss(fseg).meshname$) and (fss(wr).texture$<>fss(fseg).texture$) and fss(fseg).rightsize<>fss(wr).leftsize then cutright=0
+endif
+endif
+
+if arraynotout(lay+1,x,y)>0 then wallup=findstatic(vseg(lay+1,x,y).vis.wl)
+if arraynotout(lay-1,x,y)>0 then walldown=findstatic(vseg(lay-1,x,y).vis.wl)
+if wallup>0
+if fss(fseg).upsize=fss(wallup).downsize then cutup=1
+endif
+if walldown>0
+if fss(fseg).downsize=fss(walldown).upsize then cutdown=1
+endif
+
+endif
+
+if cutleft>1 then cutleft=1 : if cutleft<0 then cutleft=0
+if cutright>1 then cutright=1 : if cutright<0 then cutright=0
+`if fsega=1 or fsega=3
+``cutl=cutleft
+`cutr=cutright
+`else
+cutl=cutright
+cutr=cutleft
+`endif
+
+cutpoly(segmentmesh$,segtexture$,newstatic,cutl,cutr,0,cutback,cutup,cutdown)
+endfunction
+
+function optimizeoutwallmeshes(fseg,iswall)
+lay=fss(fseg).lay
+x=fss(fseg).x
+y=fss(fseg).y
+newstatic=fss(fseg).obj
+segmentmesh$=fss(fseg).meshname$
+segtexture$=fss(fseg).texture$
+
+if fss(fseg).csg=1 then segmentmesh$=""
+`if get limb count(newstatic)>0 then segmentmesh$=""
+cutleft=0 : cutright=0 : cutback=0
+fsega=getsegmentangle(lay,x,y)
+
+if iswall=1
+if arraynotout(lay,x-1,y)>0 then cutleft=vseg(lay,x-1,y).vis.owb
+if arraynotout(lay,x+1,y)>0 then cutright=vseg(lay,x+1,y).vis.owb
+if cutleft=0 then cutleft=vseg(lay,x,y).vis.owl
+if cutright=0 then cutright=vseg(lay,x,y).vis.owr
+if vseg(lay,x,y).vis.owb>0 then cutback=1
+
+if cutleft>0
+if arraynotout(lay,x-1,y)>0
+wl=findstatic(vseg(lay,x-1,y).vis.owb)
+if (fss(wl).meshname$<>fss(fseg).meshname$) and (fss(wl).texture$<>fss(fseg).texture$) and fss(fseg).leftsize<>fss(wl).rightsize then cutleft=0
+endif
+endif
+if cutright>0
+if arraynotout(lay,x+1,y)>0
+wr=findstatic(vseg(lay,x+1,y).vis.owb)
+if (fss(wr).meshname$<>fss(fseg).meshname$) and (fss(wr).texture$<>fss(fseg).texture$) and fss(fseg).rightsize<>fss(wr).leftsize then cutright=0
+endif
+endif
+
+if arraynotout(lay+1,x,y)>0 then wallup=findstatic(vseg(lay+1,x,y).vis.owb)
+if arraynotout(lay-1,x,y)>0 then walldown=findstatic(vseg(lay-1,x,y).vis.owb)
+if wallup>0
+if fss(fseg).upsize=fss(wallup).downsize then cutup=1
+endif
+if walldown>0
+if fss(fseg).downsize=fss(walldown).upsize then cutdown=1
+endif
+
+endif
+
+if iswall=2
+if arraynotout(lay,x,y+1)>0 then cutleft=vseg(lay,x,y+1).vis.owr
+if arraynotout(lay,x,y-1)>0 then cutright=vseg(lay,x,y-1).vis.owr
+if cutleft=0 then cutleft=vseg(lay,x,y).vis.owb
+if cutright=0 then cutright=vseg(lay,x,y).vis.owf
+if vseg(lay,x,y).vis.owr>0 then cutback=1
+
+if cutleft>0
+if arraynotout(lay,x,y+1)>0
+wl=findstatic(vseg(lay,x,y+1).vis.owr)
+if (fss(wl).meshname$<>fss(fseg).meshname$) and (fss(wl).texture$<>fss(fseg).texture$) and fss(fseg).leftsize<>fss(wl).rightsize then cutleft=0
+endif
+endif
+if cutright>0
+if arraynotout(lay,x,y-1)>0
+wr=findstatic(vseg(lay,x,y-1).vis.owr)
+if (fss(wr).meshname$<>fss(fseg).meshname$) and (fss(wr).texture$<>fss(fseg).texture$) and fss(fseg).rightsize<>fss(wr).leftsize then cutright=0
+endif
+endif
+
+if arraynotout(lay+1,x,y)>0 then wallup=findstatic(vseg(lay+1,x,y).vis.owr)
+if arraynotout(lay-1,x,y)>0 then walldown=findstatic(vseg(lay-1,x,y).vis.owr)
+if wallup>0
+if fss(fseg).upsize=fss(wallup).downsize then cutup=1
+endif
+if walldown>0
+if fss(fseg).downsize=fss(walldown).upsize then cutdown=1
+endif
+
+endif
+
+if iswall=3
+if arraynotout(lay,x+1,y)>0 then cutleft=vseg(lay,x+1,y).vis.owf
+if arraynotout(lay,x-1,y)>0 then cutright=vseg(lay,x-1,y).vis.owf
+if cutleft=0 then cutleft=vseg(lay,x,y).vis.owr
+if cutright=0 then cutright=vseg(lay,x,y).vis.owl
+if vseg(lay,x,y).vis.owf>0 then cutback=1
+
+if cutleft>0
+if arraynotout(lay,x+1,y)>0
+wl=findstatic(vseg(lay,x+1,y).vis.owf)
+if (fss(wl).meshname$<>fss(fseg).meshname$) and (fss(wl).texture$<>fss(fseg).texture$) and fss(fseg).leftsize<>fss(wl).rightsize then cutleft=0
+endif
+endif
+if cutright>0
+if arraynotout(lay,x-1,y)>0
+wr=findstatic(vseg(lay,x-1,y).vis.owf)
+if (fss(wr).meshname$<>fss(fseg).meshname$) and (fss(wr).texture$<>fss(fseg).texture$) and fss(fseg).rightsize<>fss(wr).leftsize then cutright=0
+endif
+endif
+
+if arraynotout(lay+1,x,y)>0 then wallup=findstatic(vseg(lay+1,x,y).vis.owf)
+if arraynotout(lay-1,x,y)>0 then walldown=findstatic(vseg(lay-1,x,y).vis.owf)
+if wallup>0
+if fss(fseg).upsize=fss(wallup).downsize then cutup=1
+endif
+if walldown>0
+if fss(fseg).downsize=fss(walldown).upsize then cutdown=1
+endif
+
+endif
+
+if iswall=4
+if arraynotout(lay,x,y-1)>0 then cutleft=vseg(lay,x,y-1).vis.owl
+if arraynotout(lay,x,y+1)>0 then cutright=vseg(lay,x,y+1).vis.owl
+if cutleft=0 then cutleft=vseg(lay,x,y).vis.owf
+if cutright=0 then cutright=vseg(lay,x,y).vis.owb
+if vseg(lay,x,y).vis.owl>0 then cutback=1
+
+if cutleft>0
+if arraynotout(lay,x,y-1)>0
+wl=findstatic(vseg(lay,x,y-1).vis.owl)
+if (fss(wl).meshname$<>fss(fseg).meshname$) and (fss(wl).texture$<>fss(fseg).texture$) and fss(fseg).leftsize<>fss(wl).rightsize then cutleft=0
+endif
+endif
+if cutright>0
+if arraynotout(lay,x,y+1)>0
+wr=findstatic(vseg(lay,x,y+1).vis.owl)
+if (fss(wr).meshname$<>fss(fseg).meshname$) and (fss(wr).texture$<>fss(fseg).texture$) and fss(fseg).rightsize<>fss(wr).leftsize then cutright=0
+endif
+endif
+
+if arraynotout(lay+1,x,y)>0 then wallup=findstatic(vseg(lay+1,x,y).vis.owl)
+if arraynotout(lay-1,x,y)>0 then walldown=findstatic(vseg(lay-1,x,y).vis.owl)
+if wallup>0
+if fss(fseg).upsize=fss(wallup).downsize then cutup=1
+endif
+if walldown>0
+if fss(fseg).downsize=fss(walldown).upsize then cutdown=1
+endif
+
+endif
+
+if cutleft>1 then cutleft=1 : if cutleft<0 then cutleft=0
+if cutright>1 then cutright=1 : if cutright<0 then cutright=0
+`if fsega=1 or fsega=3
+cutl=cutleft
+cutr=cutright
+`else
+`cutl=cutright
+`cutr=cutleft
+`endif
+
+cutpoly(segmentmesh$,segtexture$,newstatic,cutl,cutr,0,cutback,cutup,cutdown)
+
+endfunction
+
+`///////////////common functions
+function arraynotout(lay,x,y)
+if ((lay>=0 and lay<=lmax) and (x>=0 and x<=maxx) and (y>=0 and y<=maxy)) then exitfunction 1 else exitfunction 0
+endfunction 0
+
+function getoptimeshfilename(meshname$,left,right,fore,back,up,down)
+meshname$=lower$(meshname$)
+if right$(meshname$,2)=".x" then basemesh$=left$(meshname$,len(meshname$)-2)
+if right$(meshname$,4)=".dbo" then basemesh$=left$(meshname$,len(meshname$)-4)
+if left>0 then left=1 else left=0 : if right>0 then right=1 else right=0 : if fore>0 then fore=1 else fore=0
+if back>0 then back=1 else back=0 : if up>0 then up=1 else up=0 : if down>0 then down=1 else down=0
+optimeshname$=basemesh$+"_cut_"+str$(left)+str$(right)+str$(fore)+str$(back)+str$(up)+str$(down)+".dbo"
+endfunction optimeshname$
+
+function cutpoly(mesh$,texture$,obj,left,right,fore,back,up,down)
+if left>0 or right>0 or fore>0 or back>0 or up>0 or down>0
+if mesh$<>""
+optimesh$=getoptimeshfilename(mesh$,left,right,fore,back,up,down)
+`if file exist(optimesh$)=1 then delete file optimesh$
+if file exist(optimesh$)=0
+cutpolybase(obj,left,right,fore,back,up,down)
+`updatemesh(obj,0)
+saveobject(optimesh$,obj)
+else
+seg=findstatic(obj)
+fss(seg).optimesh$=optimesh$
+obj=loadobject(optimesh$,texture$,0,obj)
+endif
+else
+cutpolybase(obj,left,right,fore,back,up,down)
+endif
+endif
+endfunction
+
+function cutvertex(mesh$,texture$,obj,left,right,fore,back,up,down)
+if left>0 or right>0 or fore>0 or back>0 or up>0 or down>0
+if mesh$<>""
+optimesh$=getoptimeshfilename(mesh$,left,right,fore,back,up,down)
+`if file exist(optimesh$)=1 then delete file optimesh$
+if file exist(optimesh$)=0
+cutvertexbase(obj,left,right,fore,back,up,down)
+`updatemesh(obj,0)
+saveobject(optimesh$,obj)
+else
+seg=findstatic(obj)
+fss(seg).optimesh$=optimesh$
+obj=loadobject(optimesh$,texture$,0,obj)
+endif
+else
+cutvertexbase(obj,left,right,fore,back,up,down)
+endif
+endif
+endfunction

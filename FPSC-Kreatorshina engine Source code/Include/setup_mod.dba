@@ -1,0 +1,213 @@
+rem ***** included source file *****
+_setup_mod:
+
+`globals k-mod
+global deskw as integer : deskw=desktop width()
+global deskh as integer : deskh=desktop height()
+global deskd as integer : deskd=32
+global disw as integer
+global dish as integer
+global disd as integer
+global sw as integer
+global sh as integer
+global syncmode as byte : syncmode=0
+global syncsleep as boolean
+global phy_debug as boolean : phy_debug=0
+global sc_debug as boolean : sc_debug=0
+global portaldebug as boolean : portaldebug=0
+
+global camfov as float : camfov=75
+global syncrate as word : syncrate=60
+global segments_prosmotr as boolean : segments_prosmotr=0
+global maxx as integer
+global maxy as integer
+global layermax as integer
+global realmaxx as integer
+global realmaxy as integer
+global reallayermax as integer
+
+global darkaiswich as byte
+global framerategame as integer
+global vsync as byte : vsync=1
+global framerategame=60
+global flashlightkey as integer
+global language as integer
+global texturequality as integer
+`start timer
+global frametime#=0.0
+global starttime=timer()
+global timer#
+d3dca=255
+kmmousespeed#=1.0
+
+`advanced lighting setup
+global kmaldebug as boolean
+global kmadvancedlight as boolean
+global maxeffectcount as byte : maxeffectcount=20
+global kmnoal as boolean
+
+global km_specular=1
+global km_subsurface=0
+global km_camerarange=64000
+global km_camerafov=70
+global km_fogrange=999999999
+global km_fogscale as float : km_fogscale=4
+global km_fog_r=100
+global km_fog_g=100
+global km_fog_b=100
+global km_entityshadows=1
+global km_staticshadows=1
+global km_charactershadows=1
+global km_shadowquality=2
+global km_pointlightshadows=1
+global km_spotlightshadows=1
+global km_maxpointlightshadows=512
+global km_pointlightintensity=6
+global km_maxspotlightshadows=512
+global km_spotlightintensity=6
+global km_directlight=1
+global km_maxdirectlightshadows=1024
+global km_directlightintensity=6
+global km_directlightrange=24000
+global km_directlightr=200
+global km_directlightg=200
+global km_directlightb=200
+global km_ambient_intensity as float : km_ambient_intensity=1
+global km_ambient_emissive as float : km_ambient_emissive=10
+global km_ambient_r=102
+global km_ambient_g=102
+global km_ambient_b=102
+global screenquality as float : screenquality=1
+global postfilter=1
+global km_effectsquality=1
+global km_anisotropy=1
+global km_postquality as float : km_postquality=1
+global km_distortion=1
+global km_fxaa=0
+global km_motionblur=0
+global km_ssao=1
+global km_ssr=1
+global km_godrays=1
+global km_bloom=1
+global km_lensflare=1
+global km_dof=1
+global waterscale=16
+global waterwave=1
+global ocean=0
+global km_dynamicsky=1
+global km_updatetextures=0
+
+global segrand as boolean
+
+`Read ini files original Code from FPSC-Community mod
+if fileexist("setup_mod.ini")=1
+dim fpscmodlinecount$()
+open to read 1,"setup_mod.ini"
+while file end(1)=0
+array insert at bottom fpscmodlinecount$(0)
+read string 1,fpscmodlinecount$()
+endwhile
+close file 1
+fpscmodlinecount=array count(fpscmodlinecount$(0))+1
+undim fpscmodlinecount$(0)
+dim data$(fpscmodlinecount)
+load array "setup_mod.ini",data$()
+for l=0 to fpscmodlinecount
+line$=data$(l)
+if len(line$)>0
+if left$(line$,1)<>";"
+for c=0 to len(line$)
+if mid$(line$,c)="=" then mid=c : exit
+next c
+field$=lower$(removeedgespaces(left$(line$,mid-1)))
+inivalue$=removeedgespaces(right$(line$,len(line$)-mid))
+for c=0 to len(inivalue$)
+if mid$(inivalue$,c)="," then mid=c : exit
+next c
+inivalue1#=val(removeedgespaces(left$(inivalue$,mid-1)))
+inivalue2$=removeedgespaces(right$(inivalue$,len(inivalue$)-mid))
+if len(inivalue2$)>0 then inivalue2=val(inivalue2$) else inivalue2=-1
+tryfield$="language" : if field$=tryfield$ then language=inivalue1#
+tryfield$="maxx" : if field$=tryfield$ then maxx=inivalue1# : realmaxx=maxx
+tryfield$="maxy" : if field$=tryfield$ then maxy=inivalue1# : realmaxy=maxy
+tryfield$="segments_randomizer" : if field$=tryfield$ then segrand=inivalue1#
+tryfield$="segments_prosmotr" : if field$=tryfield$ then segments_prosmotr=inivalue1#
+tryfield$="portaldebug" : if field$=tryfield$ then portaldebug=inivalue1#
+tryfield$="d_width" : if field$=tryfield$ then disw=inivalue1#
+tryfield$="d_height" : if field$=tryfield$ then dish=inivalue1#
+tryfield$="texturequality" : if field$=tryfield$ then texturequality=inivalue1#
+tryfield$="layermax" : if field$=tryfield$ then layermax=inivalue1# : reallayermax=layermax
+tryfield$="syncrate_game" : if field$=tryfield$ then framerategame=inivalue1#
+tryfield$="vsync" : if field$=tryfield$ then vsync=inivalue1#
+tryfield$="syncsleep" : if field$=tryfield$ then syncsleep=inivalue1#
+tryfield$="kmcompositionfix" : if field$=tryfield$ then kmcompositionfix=inivalue1#
+tryfield$="phy_debug" : if field$=tryfield$ then phy_debug=inivalue1#
+tryfield$="sc_debug" : if field$=tryfield$ then sc_debug=inivalue1#
+tryfield$="mousespeed" : if field$=tryfield$ then kmmousespeed#=inivalue1#
+tryfield$="updatetextures" : if field$=tryfield$ then km_updatetextures=inivalue1#
+tryfield$="copyfiles" : if field$=tryfield$ then copyfiles=inivalue1#
+tryfield$="copydirectory" : if field$=tryfield$ then currentcopydirectory$=inivalue$
+
+`advanced lighting
+tryfield$="kmadvancedlight" : if field$=tryfield$ then kmadvancedlight=inivalue1#
+tryfield$="specular" : if field$=tryfield$ then km_specular=inivalue1#
+tryfield$="subsurface" : if field$=tryfield$ then km_subsurface=inivalue1#
+tryfield$="camerarange" : if field$=tryfield$ then km_camerarange=inivalue1#
+tryfield$="camerafov" : if field$=tryfield$ then km_camerafov=inivalue1#
+tryfield$="fogrange" : if field$=tryfield$ then km_fogrange=inivalue1#
+tryfield$="fogscale" : if field$=tryfield$ then km_fogscale=inivalue1#
+tryfield$="fog_r" : if field$=tryfield$ then km_fog_r=inivalue1#
+tryfield$="fog_g" : if field$=tryfield$ then km_fog_g=inivalue1#
+tryfield$="fog_b" : if field$=tryfield$ then km_fog_b=inivalue1#
+
+tryfield$="entityshadows" : if field$=tryfield$ then km_entityshadows=inivalue1#
+tryfield$="staticshadows" : if field$=tryfield$ then km_staticshadows=inivalue1#
+tryfield$="charactershadows" : if field$=tryfield$ then km_charactershadows=inivalue1#
+
+tryfield$="shadowquality" : if field$=tryfield$ then km_shadowquality=inivalue1#
+tryfield$="pointlightshadows" : if field$=tryfield$ then km_pointlightshadows=inivalue1#
+tryfield$="spotlightshadows" : if field$=tryfield$ then km_spotlightshadows=inivalue1#
+tryfield$="maxpointlightshadows" : if field$=tryfield$ then km_maxpointlightshadows=inivalue1#
+tryfield$="pointlightintensity" : if field$=tryfield$ then km_pointlightintensity=inivalue1#
+tryfield$="maxspotlightshadows" : if field$=tryfield$ then km_maxspotlightshadows=inivalue1#
+tryfield$="spotlightintensity" : if field$=tryfield$ then km_spotlightintensity=inivalue1#
+tryfield$="directlight" : if field$=tryfield$ then km_directlight=inivalue1#
+tryfield$="maxdirectlightshadows" : if field$=tryfield$ then km_maxdirectlightshadows=inivalue1#
+tryfield$="directlightintensity" : if field$=tryfield$ then km_directlightintensity=inivalue1#
+tryfield$="directlightrange" : if field$=tryfield$ then km_directlightrange=inivalue1#
+tryfield$="dynamicsky" : if field$=tryfield$ then km_dynamicsky=inivalue1#
+tryfield$="directlightr" : if field$=tryfield$ then km_directlightr=inivalue1#
+tryfield$="directlightg" : if field$=tryfield$ then km_directlightg=inivalue1#
+tryfield$="directlightb" : if field$=tryfield$ then km_directlightb=inivalue1#
+tryfield$="ambient_intensity" : if field$=tryfield$ then km_ambient_intensity=inivalue1#
+tryfield$="ambient_emissive" : if field$=tryfield$ then km_ambient_emissive=inivalue1#
+tryfield$="ambient_r" : if field$=tryfield$ then km_ambient_r=inivalue1#
+tryfield$="ambient_g" : if field$=tryfield$ then km_ambient_g=inivalue1#
+tryfield$="ambient_b" : if field$=tryfield$ then km_ambient_b=inivalue1#
+tryfield$="screenquality" : if field$=tryfield$ then screenquality=inivalue1#
+tryfield$="postfilter" : if field$=tryfield$ then postfilter=inivalue1#
+tryfield$="effectsquality"  : if field$=tryfield$ then km_effectsquality=inivalue1#
+tryfield$="anisotropy"  : if field$=tryfield$ then km_anisotropy=inivalue1#
+
+tryfield$="postquality" : if field$=tryfield$ then km_postquality=inivalue1#
+tryfield$="distortion" : if field$=tryfield$ then km_distortion=inivalue1#
+tryfield$="fxaa" : if field$=tryfield$ then km_fxaa=inivalue1#
+tryfield$="motionblur" : if field$=tryfield$ then km_motionblur=inivalue1#
+tryfield$="ssao" : if field$=tryfield$ then km_ssao=inivalue1#
+tryfield$="ssr" : if field$=tryfield$ then km_ssr=inivalue1#
+tryfield$="godrays" : if field$=tryfield$ then km_godrays=inivalue1#
+tryfield$="bloom" : if field$=tryfield$ then km_bloom=inivalue1#
+tryfield$="lensflare" : if field$=tryfield$ then km_lensflare=inivalue1#
+tryfield$="dof" : if field$=tryfield$ then km_dof=inivalue1#
+tryfield$="waterscale" : if field$=tryfield$ then waterscale=inivalue1#
+tryfield$="waterwave" : if field$=tryfield$ then waterwave=inivalue1#
+tryfield$="ocean" : if field$=tryfield$ then ocean=inivalue1#
+
+endif
+endif
+next l
+undim data$()
+endif
+
+
+return

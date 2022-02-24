@@ -1,0 +1,1448 @@
+Rem ***** Included Source File *****
+
+_basic_functions_init:
+if basic_functions_init=0
+global fullscreenmode as boolean : fullscreenmode=1
+global positioncube : positioncube=makeobjectcube(5) : exclude object on positioncube
+global freecamcx# : global freecamcy# : global freecamcr# : global freecamcf# : global freecamacx# : global freecamacy# : global freecamacr# : global freecamacf#
+global oldcamx# : global oldcamy# : global oldcamz# : global oldcamax# : global oldcamay# : global oldcamaz#
+global updateobjectstime as integer
+
+`------------------types---------------------------
+type staticoptimizationtype
+file as string
+processid as dword
+endtype
+
+type xyztype
+x as float
+y as float
+z as float
+endtype
+
+type rgbtype
+r as byte
+g as byte
+b as byte
+endtype
+
+type loadedobjecttype
+obj as word
+mesh as word
+lod1 as word
+lod2 as word
+lod3 as word
+instance as boolean
+model as string
+texture as string
+time as integer
+endtype
+
+type interpolationtype
+startframe as integer
+endframe as integer
+interpolation as integer
+endtype
+
+type keytype
+state as boolean
+press as boolean
+endtype
+
+type filedata
+file as string
+fileid as word
+createdate as string
+modifdate as string
+flag as word
+endtype
+
+`---------------------arrays------------------
+global dim loadedobjects(0) as loadedobjecttype
+global dim textures(0) as filedata
+global dim keys(221) as keytype
+global dim hidenobjects(9999999) as boolean
+
+`------------------Russkie Bukvy
+dim RUSUP(33) AS STRING : dim ruslo(33) as string : global ruslower_init=1
+RUSUP(0)="ХУЙ" : RUSUP(1)="А" : RUSUP(2)="Б" : RUSUP(3)="В" : RUSUP(4)="Г" : RUSUP(5)="Д" : RUSUP(6)="Е" : RUSUP(7)="Ё" : RUSUP(8)="Ж" : RUSUP(9)="З" : RUSUP(10)="И" : RUSUP(11)="Й" : RUSUP(12)="К" : RUSUP(13)="Л" : RUSUP(14)="М" : RUSUP(15)="Н" : RUSUP(16)="О" : RUSUP(17)="П" : RUSUP(18)="Р" : RUSUP(19)="С" : RUSUP(20)="Т" : RUSUP(21)="У" : RUSUP(22)="Ф" : RUSUP(23)="Х" : RUSUP(24)="Ц" : RUSUP(25)="Ч" : RUSUP(26)="Ш" : RUSUP(27)="Щ" : RUSUP(28)="Ъ" : RUSUP(29)="Ы" : RUSUP(30)="Ь" : RUSUP(31)="Э" : RUSUP(32)="Ю" : RUSUP(33)="Я" : ruslo(0)="нету" : ruslo(1)="а" : ruslo(2)="б" : ruslo(3)="в" : ruslo(4)="г" : ruslo(5)="д" : ruslo(6)="е" : ruslo(7)="ё" : ruslo(8)="ж" : ruslo(9)="э" : ruslo(10)="и" : ruslo(11)="й" : ruslo(12)="к" : ruslo(13)="л" : ruslo(14)="м" : ruslo(15)="н" : ruslo(16)="о" : ruslo(17)="п" : ruslo(18)="р" : ruslo(19)="с" : ruslo(20)="т" : ruslo(21)="у" : ruslo(22)="ф" : ruslo(23)="х" : ruslo(24)="ц" : ruslo(25)="ч" : ruslo(26)="ш" : ruslo(27)="щ" : ruslo(28)="ъ" : ruslo(29)="ы" : ruslo(30)="ь" : ruslo(31)="э" : ruslo(32)="ю" : ruslo(33)="я"
+
+basic_functions_init=1
+endif
+return
+
+function createimage(width,height,r,g,b)
+imageNumber=find free image()
+tcamera=find free camera()
+make camera tcamera
+backdrop on tcamera
+color backdrop tcamera,rgb(r,g,b)
+set camera to image tcamera,imageNumber,width,height,3,21
+sync mask 2^tcamera
+fastsync
+delete camera tcamera
+endfunction imageNumber
+
+
+function screen_collision(obja,objb)
+if objectexist(obja)=1 and objectexist(objb)=1
+if object in screen(obja)>0 and object in screen(objb)>0
+ar#=screen height()*(objectinscreensize(obja)*0.5)
+br#=screen height()*(objectinscreensize(objb)*0.5)
+ax#=object screen x(obja)
+ay#=object screen y(obja)
+bx#=object screen x(objb)
+by#=object screen y(objb)
+dist#=distance(ax#,ay#,0,bx#,by#,0)
+if (ar#+br#)=>dist# then collide=1
+endif
+endif
+endfunction collide
+
+function cameraview(obj,viewangle#)
+if objectexist(obj)
+dx#=camera position x()-object position x(obj)
+dz#=camera position z()-object position z(obj)
+d#=sqrt((dx#^2)+(dz#^2))
+oay#=wrapvalue(camera angle Y())
+if oay#>180 then dec oay#,360.0
+if oay#<-180 then inc oay#,360.0
+a#=wrapvalue(atanfull(dx#,dz#))-oay#
+if a#>180 then dec a#,360.0
+if a#<-180 then inc a#,360.0
+if a#<(viewangle#*0.5) and a#>-(viewangle#*0.5) then result=1
+endif
+endfunction result
+
+function camerainviewcone(obj,viewangle#)
+if objectexist(obj)
+dx#=object position x(obj)-camera position x()
+dz#=object position z(obj)-camera position z()
+`d#=sqrt((dx#^2)+(dz#^2))
+oay#=wrapvalue(object angle Y(obj))
+if oay#>180 then dec oay#,360.0
+if oay#<-180 then inc oay#,360.0
+a#=wrapvalue(atanfull(dx#,dz#))-oay#
+if a#>180 then dec a#,360.0
+if a#<-180 then inc a#,360.0
+if a#<(viewangle#*0.5) and a#>-(viewangle#*0.5) then result=1
+endif
+endfunction result
+
+function objectinviewcone(obj,objb,viewangle#)
+if objectexist(obj) and objectexist(objb)
+dx#=object position x(obj)-object position x(objb)
+dz#=object position z(obj)-object position z(objb)
+d#=sqrt((dx#^2)+(dz#^2))
+oay#=wrapvalue(object angle Y(obj))
+if oay#>180 then dec oay#,360.0
+if oay#<-180 then inc oay#,360.0
+a#=wrapvalue(atanfull(dx#,dz#))-oay#
+if a#>180 then dec a#,360.0
+if a#<-180 then inc a#,360.0
+if a#<(viewangle#*0.5) and a#>-(viewangle#*0.5) then result=1
+endif
+endfunction result
+
+function objectscollide(obja,objb)
+if object exist(obja) and object exist(objb)
+objar#=object size(obja)*0.5
+objbr#=object size(objb)*0.5
+dist1#=objectsdistance(obja,objb)
+if dist1#<objar#+objbr# then collide=1
+endif
+endfunction collide
+
+function objectinscreensize(obj)
+if objectexist(obj)
+if object in screen(obj)
+dist1#=distance(object position x(obj),object position y(obj),object position z(obj),camera position x(),camera position y(),camera position z())
+objradius#=objectsize(obj)
+sfov#=sin(camera fov())
+b#=(dist1#*sfov#)
+if b#=0 then b#=0.000001
+objssize#=(objradius#/b#)
+endif
+endif
+endfunction objssize#
+
+function getfilename(file$)
+f=last instr(file$,"\")
+file$=right$(file$,len(file$)-f)
+f=last instr(file$,"/")
+file$=right$(file$,len(file$)-f)
+endfunction file$
+
+function cameraismoved()
+if basic_functions_init=0 then gosub _basic_functions_init
+if oldcamx#<>camera position x() or oldcamy#<>camera position y() or oldcamz#<>camera position z() or oldcamax#<>camera angle x() or oldcamay#<>camera angle y() or oldcamaz#<>camera angle z()
+oldcamx#=camera position x() : oldcamy#=camera position y() : oldcamz#=camera position z()
+oldcamax#=camera angle x() : oldcamay#=camera angle y() : oldcamaz#=camera angle z()
+exitfunction 1
+endif
+endfunction 0
+
+function cloneimage(oldimage)
+if image exist(oldimage)=1
+image=find free image()
+freemem=find free memblock()
+make memblock from image freemem,oldimage
+make image from memblock image,freemem
+delete memblock freemem
+endif
+endfunction image
+
+function cloneobject(obj)
+if objectexist(obj)=1
+px#=object position x(obj) : py#=object position y(obj) : pz#=object position z(obj)
+ax#=object angle x(obj) : ay#=object angle y(obj) : az#=object angle z(obj)
+position object obj,0,0,0 : rotate object obj,0,0,0
+clone=find free object()
+clone object clone,obj
+position object obj,px#,py#,pz# : rotate object obj,ax#,ay#,az#
+endif
+endfunction clone
+
+function instanceobject(obj)
+if objectexist(obj)=1
+px#=object position x(obj) : py#=object position y(obj) : pz#=object position z(obj)
+ax#=object angle x(obj) : ay#=object angle y(obj) : az#=object angle z(obj)
+position object obj,0,0,0 : rotate object obj,0,0,0
+instance=find free object()
+instance object instance,obj
+position object obj,px#,py#,pz# : rotate object obj,ax#,ay#,az#
+endif
+endfunction instance
+
+function getcentralobjectpositions(obj)
+if objectexist(obj)=1
+position object positioncube,object position x(obj),object position y(obj),object position z(obj)
+rotate object positioncube,object angle x(obj),object angle y(obj),object angle z(obj)
+move object up positioncube,object collision center y(obj)
+move object right positioncube,object collision center x(obj)
+move object positioncube,object collision center z(obj)
+exitfunction 1
+endif
+endfunction 0
+
+function redusevalue(value#,minvalue#,maxvalue#)
+if value#<minvalue# then value#=minvalue#
+if value#>maxvalue# then value#=maxvalue#
+endfunction value#
+
+function loadeffect(file$,flag)
+if basic_functions_init=0 then gosub _basic_functions_init
+if fileexist(file$)=1
+if fileformat(file$,".fx")=1
+tempeffect=find free effect()
+if flag=0 then load effect file$,tempeffect,0
+if flag=1 then load effect file$,tempeffect,1
+if flag=2 then load effect file$,tempeffect,0,1
+if flag=3 then load effect file$,tempeffect,0,2
+if flag=4 then load effect file$,tempeffect,1,1
+if flag=5 then load effect file$,tempeffect,1,2
+endif
+endif
+endfunction tempeffect
+
+function setobjecttexture(obj,texture$,state,flag)
+timg=loadimage(texture$,flag)
+if state=-1
+if timg>0 then texture object obj,timg
+else
+if timg>0 then texture object obj,timg,state
+endif
+endfunction
+
+function loadimage(texture$,flag)
+texture$=fast lower$(texture$)
+ddstexture$=newformat(texture$,".dds")
+if fileexist(texture$)=0
+if fileformat(texture$,".tga")=1 then texture$=ddstexture$
+endif
+`Загружает картинку только если такой-же картинки нет в массиве.
+if basic_functions_init=0 then gosub _basic_functions_init
+if texture$<>""
+imgid=0
+if fileexist(texture$)=1
+
+for t=0 to array count(textures())
+if texture$=textures(t).file and flag=textures(t).flag
+imgid=textures(t).fileid : exitfunction imgid
+endif
+next t
+
+if imgid=0
+for t=0 to array count(textures())
+if textures(t).fileid=0
+textures(t).file=texture$
+textures(t).fileid=find free image()
+textures(t).flag=flag
+textures(t).createdate=FILE CREATION TIMESTAMP$(textures(t).file)
+textures(t).modifdate=FILE MODIFICATION TIMESTAMP$(textures(t).file)
+imgid=textures(t).fileid
+if copyfiles>0 then copyfile(textures(t).file,copydirectory$+"Files\"+textures(t).file)
+load image textures(t).file,imgid,flag,texturequality : array insert at bottom textures() : exitfunction imgid
+endif
+next t
+endif
+
+endif
+endif
+endfunction imgid
+
+function updateimages()
+exitvalue=0
+
+for t=0 to array count(textures())
+if textures(t).file<>""
+`if fileexist(textures(t).file)
+ctimestamp$=FILE MODIFICATION TIMESTAMP$(textures(t).file)
+if textures(t).modifdate<>ctimestamp$
+if imageexist(textures(t).fileid)
+delete image textures(t).fileid
+load image textures(t).file,textures(t).fileid,textures(t).flag,texturequality
+textures(t).modifdate=ctimestamp$
+exitvalue=1
+endif : endif : endif `: endif
+next t
+
+endfunction exitvalue
+
+function clearallimages()
+tmax=array count(textures())
+for t=0 to tmax
+if textures(t).fileid>0
+if image exist(textures(t).fileid) then delete image textures(t).fileid
+endif
+next t
+empty array textures()
+endfunction
+
+function limbsisoffseted(obj)
+if objectexist(obj)=1
+maxlmb=get limb count(obj)
+for lmb=0 to maxlmb
+if limb offset x(obj,lmb) or limb offset y(obj,lmb) or limb offset z(obj,lmb)<>0 then exitfunction 1
+next lmb
+endif
+endfunction 0
+
+function loadobject(file$,texture$,instance,obj)
+if basic_functions_init=0 then gosub _basic_functions_init
+file$=lower$(file$) : texture$=lower$(texture$)
+dbofile$=converttodbo(file$)
+lobj=findloadedobject(dbofile$,texture$)
+if instance=2 then lobj=0
+if lobj=0 then tempobject=addloadedobject(dbofile$,texture$,instance) else tempobject=lobj
+if instance=3 then exitfunction lobj
+if tempobject>0
+lo=findobject(tempobject)
+if obj=0
+obj=find free object()
+else
+if object exist(obj)=1 then delete object obj
+endif
+rotate object tempobject,0,0,0
+if instance=0
+clone object obj,tempobject
+loadedobjects(lo).time=timer()
+else
+instance object obj,tempobject
+loadedobjects(lo).instance=instance
+endif
+endif
+endfunction obj
+
+function addloadedobject(file$,texture$,instance)
+if fileformat(file$,".dbo")=1 or fileformat(file$,".x")=1 or fileformat(file$,".3ds")=1
+if fileexist(file$)=1
+if file size(file$)>76
+array insert at bottom loadedobjects()
+lo=array count(loadedobjects())
+obj=find free object()
+loadedobjects(lo).obj=obj
+loadedobjects(lo).model=file$
+loadedobjects(lo).texture=texture$
+load object file$,obj,0
+if copyfiles>0 then copyfile(file$,copydirectory$+"Files\"+file$)
+`fixmesh(obj)
+set object mask obj,0
+exclude object on obj
+move object down obj,99999999
+timg=loadimage(texture$,0) : if timg>0 then texture object obj,0,timg
+endif
+endif
+endif
+endfunction obj
+
+function findloadedobject(file$,texture$)
+file$=fast lower$(file$) : texture$=fast lower$(texture$)
+for lo=1 to array count(loadedobjects())
+if loadedobjects(lo).model=file$ and loadedobjects(lo).texture=texture$
+obj=loadedobjects(lo).obj : exitfunction obj
+endif
+next lo
+endfunction 0
+
+function findloadedmesh(file$,texture$)
+file$=fast lower$(file$) : texture$=fast lower$(texture$)
+lomax=array count(loadedobjects())
+for lo=1 to lomax
+if loadedobjects(lo).model=file$ and loadedobjects(lo).texture=texture$
+mesh=loadedobjects(lo).mesh : exitfunction mesh
+endif
+next lo
+endfunction 0
+
+function findobject(obj)
+lomax=array count(loadedobjects())
+for lo=1 to lomax
+if loadedobjects(lo).obj=obj then exitfunction lo
+next lo
+endfunction 0
+
+function hideloadedobjects()
+lomax=array count(loadedobjects())
+for lo=1 to lomax
+set object mask loadedobjects(lo).obj,0
+next lo
+endfunction 0
+
+function updateloadedobjects(minutes#)
+if basic_functions_init=0 then gosub _basic_functions_init
+if timer()-updateobjectstime>240
+minutes#=minutes#*60*1000
+for lo=1 to array count(loadedobjects())
+if loadedobjects(lo).obj>0 and loadedobjects(lo).instance=0
+if object exist(loadedobjects(lo).obj)=1
+if timer()-loadedobjects(lo).time>minutes# then delete object loadedobjects(lo).obj : array delete element loadedobjects(),lo
+endif
+endif
+updateobjectstime=timer()
+next lo
+endif
+endfunction
+
+function deleteloadedobject(obj)
+lo=findobject(obj)
+if lo>0 then delete object loadedobjects(lo).obj : array delete element loadedobjects(),lo
+endfunction
+
+function uvnotchanged(obj)
+if objectexist(obj)=1
+maxlmb=get limb count(obj)
+for l=0 to maxlimb
+if limb has mesh(obj,l) then exit
+next l
+lock vertexdata for limb obj,0
+maxv=get vertexdata vertex count()
+for v=0 to maxv
+tu#=get vertexdata u(v)
+tv#=get vertexdata v(v)
+midu#=midu#+tu#
+midv#=midv#+tv#
+next v
+unlock vertexdata
+midu#=midu#/maxv
+midv#=midv#/maxv
+if (midu#>0.45 and midu#<0.55) and (midv#>0.45 and midv#<0.55) then exitfunction 1
+endif
+ENDFUNCTION 0
+
+function beginstaticoptimization()
+dim staticopt(0) as staticoptimizationtype
+endfunction
+
+function findsamestaticopt(file$)
+for s=1 to array count(staticopt())
+if staticopt(s).file=file$ then exitfunction s
+next s
+endfunction 0
+
+function addfiletooptimizestatic(file$)
+s=findsamestaticopt(file$)
+if s=0
+array insert at bottom staticopt()
+s=array count(staticopt())
+staticopt(s).file=file$
+endif
+endfunction
+
+function executestaticoptimization()
+sync off
+maxthread=GetActiveProcessorCount()
+if maxthread>3 then maxthread=3
+dim threads(maxthread)
+ti=0
+for s=1 to array count(staticopt())
+sfdbo$=newformat(staticopt(s).file,".static.dbo")
+if fileexist(sfdbo$)=0 and fileexist(staticopt(s).file)=1
+staticopt(s).processid=execute executable("Static_optimizer.exe",staticopt(s).file,bindir$+"\")
+threads(ti)=staticopt(s).processid
+if texit=0 then inc ti
+
+print console "converting mesh to static..."
+print console CHR$(10)
+print console "["+staticopt(s).file+"]"
+print console CHR$(10)
+
+do
+if t>maxthread then t=0
+if executable running(threads(t))=0 then texit=1 : ti=t : exit
+inc t
+loop
+
+endif
+
+next s
+
+`to prevent early continuing of main application
+for t=0 to maxthread
+while executable running(threads(t))=1 : endwhile
+next t
+
+sync on
+undim threads()
+
+endfunction
+
+function optimizelikestatic(file$)
+sfdbo$=newformat(file$,".static.dbo")
+if fileexist(sfdbo$)=0
+execute file "Static_optimizer.exe",file$,bindir$+"\",1
+print console "converting mesh to static..."
+print console CHR$(10)
+print console "["+file$+"]"
+print console CHR$(10)
+endif
+endfunction sfdbo$
+
+function softscale(obj,scale#)
+if objectexist(obj)
+maxl=get limb count(obj)
+for l=0 to maxl
+lock vertexdata for limb obj,l,2
+maxv=get vertexdata vertex count()
+for v=0 to maxv
+px#=get vertexdata position x(v)*scale#
+py#=get vertexdata position y(v)*scale#
+pz#=get vertexdata position z(v)*scale#
+set vertexdata position v,px#,py#,pz#
+next v
+unlock vertexdata
+next l
+endif
+endfunction
+
+function converttodbo(file$)
+file$=fast lower$(file$)
+if fileformat(file$,".dbo")=1 then dbofile$=file$
+if fileformat(file$,".x")=1 then dbofile$=left$(file$,fast len(file$)-2)+".dbo"
+if fileformat(file$,".3ds")=1 then dbofile$=left$(file$,fast len(file$)-4)+".dbo"
+if fileexist(file$)=1
+if file size(file$)>76
+if fileexist(dbofile$)=0
+tempobject=find free object()
+load object file$,tempobject,0
+`fixmesh(tempobject)
+save object dbofile$,tempobject
+delete object tempobject
+endif
+endif
+endif
+endfunction dbofile$
+
+function rndrange(value1 as integer,value2 as integer)
+`Выдает случайное число от значения 1 до 2
+if value2>value1 then rndfinal=abs(value2)-rnd(abs(value2-value1))
+if value1>value2 then rndfinal=abs(value1)-rnd(abs(value1-value2))
+endfunction rndfinal
+
+function fixfps(value#,bestfps#)
+if basic_functions_init=0 then gosub _basic_functions_init
+Timer#=FrameTime#*(bestfps#*0.001)
+if Timer#<0.05 then Timer#=0.05
+if Timer#>10 then Timer#=10
+finalvalue#=value#*Timer#
+endfunction finalvalue#
+
+function fixfpsUpdate()
+if basic_functions_init=0 then gosub _basic_functions_init
+`Эту функцию вызывают после синхронизации
+if StartTime#=0
+global FrameTime#=0.0
+global StartTime# : StartTime#=timer()
+global Timer#
+endif
+FrameTime#=(FrameTime#*0.5)+((timer()-StartTime#)*0.5)
+StartTime#=timer()
+endfunction
+
+function GetActiveProcessorCount()
+tdll=find free dll()
+load dll "kernel32.dll",tdll
+APC=call dll(tdll,"GetActiveProcessorCount",0)
+delete dll tdll
+endfunction APC
+
+function Fileexist(file$)
+tdll=find free dll()
+load dll "kernel32.dll",tdll
+ATB=call dll(tdll,"GetFileAttributesA",file$)
+delete dll tdll
+if ATB=-1 then exitfunction 0
+endfunction 1
+
+function GetMaximumProcessorCount()
+tdll=find free dll()
+load dll "kernel32.dll",tdll
+APC=call dll(tdll,"GetMaximumProcessorCount",0)
+delete dll tdll
+endfunction APC
+
+function SetProcessPriorityBoost(boost)
+tdll=find free dll()
+load dll "kernel32.dll",tdll
+if boost=1 then boost=0
+if boost=0 then boost=1
+APC=call dll(tdll,"SetProcessPriorityBoost",-1,boost)
+delete dll tdll
+endfunction APC
+
+function SetPriorityClass(Class)
+tdll=find free dll()
+load dll "kernel32.dll",tdll
+`Меняет приоритет процесса снизу таблица  возможных значений -
+` Realtime============256
+` High================128
+` Above_Normal========32768
+` Normal==============32
+` Below_Normal========16384
+` Idle================64
+` Background_Begin====1048576
+` Background_End======2097152
+if class=0 then class=64
+if class=1 then class=16384
+if class=2 then class=32
+if class=3 then class=32768
+if class=4 then class=128
+if class=5 then class=256
+APC=call dll(tdll,"SetPriorityClass",-1,Class)
+delete dll tdll
+endfunction APC
+
+function GetActiveWindow()
+tdll=find free dll()
+load dll "user32.dll",tdll
+`Узнает номер активного окна
+ActiveWindow=call dll(tdll,"GetActiveWindow")
+delete dll tdll
+endfunction ActiveWindow
+
+function setcursorposition(x,y)
+tdll=find free dll()
+load dll "user32.dll",tdll
+`Устанавливает позицию курсора (работает даже в свернутом положении)
+call dll tdll,"SetPhysicalCursorPos",x,y
+delete dll tdll
+endfunction
+
+function DestroyAplication()
+tdll=find free dll()
+load dll "kernel32.dll",tdll
+`Насильно завершает процесс
+call dll tdll,"TerminateProcess",-1
+delete dll tdll
+endfunction
+
+function masagebox(masage as string)
+tdll=find free dll()
+load dll "user32.dll",tdll
+`Создает стандартное сообщение об ошибке виндоуз с текстом указанным в параметре функции
+call dll tdll,"MessageBoxA",0,masage,0,0
+delete dll tdll
+endfunction
+
+function makeobject(mesh)
+`Создает пустой объект
+if obj=0 then obj=find free object()
+make object obj,mesh,0
+endfunction obj
+
+function makemeshfromobject(obj)
+if objectexist(obj)
+tmpmsh=find free mesh()
+make mesh from object tmpmsh,obj
+endif
+endfunction tmpmsh
+
+function makeobjectempty(obj)
+`Создает пустой объект
+if obj=0 then obj=find free object()
+make object cube obj,100
+lock vertexdata for limb obj,0,2
+vmax=get vertexdata vertex count()
+imax=get vertexdata index count()
+delete mesh from vertexdata 0,vmax,0,imax
+unlock vertexdata
+endfunction obj
+
+function distance(x1#,y1#,z1#,x2#,y2#,z2#)
+`Расчитывает растояние между 2-мя точками
+d#=Sqrt((x1#-x2#)^2+(y1#-y2#)^2+(z1#-z2#)^2)
+ENDFUNCTION d#
+
+function objectsdistance(obj1,obj2)
+`Расчитывает растояние между 2-мя объектами
+d#=Sqrt((object position x (obj1) - object position x (obj2))^2 + (object position y (obj1) - object position y (obj2))^2 + (object position z (obj1) - object position z (obj2))^2)
+endfunction d#
+
+function objectdistance(obj1)
+`Расчитывает растояние между 2-мя объектами
+d#=Sqrt((object position x (obj1) - camera position x ())^2 + (object position y (obj1) - camera position y ())^2 + (object position z (obj1) - camera position z ())^2)
+endfunction d#
+
+function objectvisible(obj)
+if objectexist(obj)=1 then tvis=hidenobjects(obj)
+endfunction tvis
+
+function hideobject(obj)
+`Прячет объект и запоминает что он спрятан
+if objectexist(obj)=1
+exclude object on obj
+hidenobjects(obj)=0
+endif
+endfunction
+
+function showobject(obj)
+`Показывает объект и запоминает что он показан
+if objectexist(obj)=1
+exclude object off obj
+hidenobjects(obj)=1
+endif
+endfunction
+
+function delete_from_text(file$,tstr$)
+chr=1
+while chr>0
+chr=INSTR(file$,tstr$)
+if chr>0
+mchr=len(file$)
+file$=left$(file$,chr-1)+right$(file$,mchr-(chr+len(tstr$)))
+endif
+endwhile
+endfunction file$
+
+function replace_text(file$,tstr$,treplace$)
+chr=1
+while chr>0
+chr=INSTR(file$,tstr$)
+if chr>0
+mchr=len(file$)
+file$=left$(file$,chr-1)+treplace$+right$(file$,mchr-(chr+len(tstr$)-1))
+endif
+endwhile
+endfunction file$
+
+function keypressed(presskey)
+`Истино если кнопка (presskey) была нажата, а затем отпущена
+if basic_functions_init=0 then gosub _basic_functions_init
+if presskey<=221
+keys(presskey).press=0
+if keys(presskey).state=0 and keystate(presskey)=1 then keys(presskey).state=1
+if keys(presskey).state=1 and keystate(presskey)=0 then keys(presskey).state=0 : keys(presskey).press=1
+OK=keys(presskey).press
+else
+ok=0
+endif
+endfunction OK
+
+function fileisimage(tfile$)
+if fileformat(tfile$,".dds")>0 or fileformat(tfile$,".jpg")>0 or fileformat(tfile$,".tga")>0 or fileformat(tfile$,".png")>0 or fileformat(tfile$,".bmp")>0 then exitfunction 1
+endfunction 0
+
+function fileformat(tfile$,format$)
+`Истинно если формат файла совпадает с форматом указанным в параметре "format$"
+if right$(fast lower$(tfile$),fast len(format$))=format$ then result=1 else result=0
+endfunction result
+
+function newformat(tfile$,format$)
+tfile$=fast lower$(tfile$)
+tempstring$=left$(tfile$,LAST INSTR(tfile$,".")-1)+format$
+endfunction tempstring$
+
+function procent(Summa as float,value as float)
+result#=(100*value)/Summa
+endfunction result#
+
+function soundexist(snd)
+if snd>0 and snd<100000
+if sound exist(snd)=1 then exitfunction 1
+endif
+endfunction 0
+
+function objectexist(obj)
+if obj>0 and obj<20000000 then result=object exist(obj)
+endfunction result
+
+function meshexist(msh)
+if msh>0 and msh<20000000 then result=mesh exist(msh)
+endfunction result
+
+function loadfont(fontfile$)
+tdll=find free dll()
+load dll "gdi32.dll",tdll
+fontid=call dll(tdll,"AddFontResourceExA",fontfile$,0,0)
+delete dll tdll
+endfunction fontid
+
+function GetThreadId()
+tdll=find free dll()
+load dll "kernel32.dll",tdll
+TID=call dll(tdll,"GetThreadId",-1)
+delete dll tdll
+endfunction TID
+
+function GetProcessId()
+tdll=find free dll()
+load dll "kernel32.dll",tdll
+TID=call dll(tdll,"GetProcessId",-1)
+delete dll tdll
+endfunction TID
+
+function IsProcessInJob(processid)
+tdll=find free dll()
+load dll "kernel32.dll",tdll
+TID=call dll(tdll,"IsProcessInJob",processid)
+delete dll tdll
+endfunction TID
+
+function GetExitCodeProcess(processid)
+tdll=find free dll()
+load dll "kernel32.dll",tdll
+TID=call dll(tdll,"GetExitCodeProcess",processid)
+delete dll tdll
+endfunction TID
+
+function makeobjectcube(size#)
+cubeobj=find free object()
+make object cube cubeobj,size#
+ENDFUNCTION cubeobj
+
+function makeobjectsphere(size#,segments)
+sphereobj=find free object()
+if segments>0
+make object sphere sphereobj,size#,segments,segments
+else
+make object sphere sphereobj,size#
+endif
+ENDFUNCTION sphereobj
+
+function makeobjectcylinder(size#,radius#)
+cylinderobj=find free object()
+make object cylinder cylinderobj,size#
+rcoef#=radius#/size#
+scale object cylinderobj,size#*rcoef#,size#,size#*rcoef#
+endfunction cylinderobj
+
+function makeobjectbox(x#,y#,z#)
+cubeobj=find free object()
+make object box cubeobj,x#,y#,z#
+ENDFUNCTION cubeobj
+
+function makeobjectplane(x#,y#,orientation)
+planeobj=find free object()
+make object plane planeobj,x#,y#,orientation
+ENDFUNCTION planeobj
+
+function makeobjectplain(x#,y#)
+planeobj=find free object()
+make object plain planeobj,x#,y#
+ENDFUNCTION planeobj
+
+
+
+`-----
+function getobjectscaleX(obj)
+if objectexist(obj)=1
+colsy#=OBJECT size x(obj,1)
+rcolsy#=OBJECT size x(obj,0)
+scale#=colsy#/rcolsy#
+endif
+scale#=scale#*100
+endfunction scale#
+
+function getobjectscaleY(obj)
+if objectexist(obj)=1
+colsy#=OBJECT size y(obj,1)
+rcolsy#=OBJECT size y(obj,0)
+scale#=colsy#/rcolsy#
+endif
+scale#=scale#*100
+endfunction scale#
+
+function getobjectscaleZ(obj)
+if objectexist(obj)=1
+colsy#=OBJECT size z(obj,1)
+rcolsy#=OBJECT size z(obj,0)
+scale#=colsy#/rcolsy#
+endif
+scale#=scale#*100
+endfunction scale#
+
+function findcolcenterx(obj)
+local occx# as double float
+local lpx# as double float
+local tccx# as double float
+if objectexist(obj)
+topx#=object position x(obj) : topy#=object position y(obj) : topz#=object position z(obj)
+toax#=object angle x(obj) : toay#=object angle y(obj) : toaz#=object angle z(obj)
+position object obj,0,0,0 : rotate object obj,0,0,0
+lpx#=limb position x(obj,0) : occx#=object collision center x(obj)
+tccx#=occx#-lpx#
+position object obj,topx#,topy#,topz# : rotate object obj,toax#,toay#,toaz#
+endif
+endfunction tccx#
+
+function findcolcentery(obj)
+local occx# as double float
+local lpx# as double float
+local tccx# as double float
+if objectexist(obj)
+topx#=object position x(obj) : topy#=object position y(obj) : topz#=object position z(obj)
+toax#=object angle x(obj) : toay#=object angle y(obj) : toaz#=object angle z(obj)
+position object obj,0,0,0 : rotate object obj,0,0,0
+lpy#=limb position y(obj,0) : occy#=object collision center y(obj)
+tccy#=occy#-lpy#
+position object obj,topx#,topy#,topz# : rotate object obj,toax#,toay#,toaz#
+endif
+endfunction tccy#
+
+function findcolcenterz(obj)
+local occx# as double float
+local lpx# as double float
+local tccx# as double float
+if objectexist(obj)
+topx#=object position x(obj) : topy#=object position y(obj) : topz#=object position z(obj)
+toax#=object angle x(obj) : toay#=object angle y(obj) : toaz#=object angle z(obj)
+position object obj,0,0,0 : rotate object obj,0,0,0
+lpz#=limb position z(obj,0) : occz#=object collision center z(obj)
+tccz#=occz#-lpz#
+position object obj,topx#,topy#,topz# : rotate object obj,toax#,toay#,toaz#
+endif
+endfunction tccz#
+
+function updatemesh(obj,yangle)
+topx#=object position x(obj) : topy#=object position y(obj) : topz#=object position z(obj)
+toax#=object angle x(obj) : toay#=object angle y(obj) : toaz#=object angle z(obj)
+position object obj,0,0,0
+rotate object obj,0,yangle,0
+msh=find free mesh()
+make mesh from object msh,obj
+if yangle=360 then convert mesh to vertexdata msh
+delete object obj
+make object obj,msh,0
+delete mesh msh
+position object obj,topx#,topy#,topz#
+rotate object obj,toax#,toay#,toaz#
+endfunction
+
+function deletefile(file$)
+if fileexist(file$) then delete file file$
+endfunction
+
+function roundingfloat(number#,numbersafterpoint)
+resultfloat as float
+if numbersafterpoint<1 then numbersafterpoint=1
+number#=number#+(0.1/(10^numbersafterpoint))
+tfloat$=str$(number#)
+p=INSTR(tfloat$,".")
+resultfloat=number#
+if p>0
+resultfloat=double val(left$(tfloat$,p+numbersafterpoint))
+endif
+endfunction resultfloat
+
+function gethighestvertex(obj,limb)
+if objectexist(obj)=1
+lock vertexdata for limb obj,limb
+vmax=get vertexdata vertex count()
+mvpy#=0
+for v=0 to vmax-1
+tvpy#=GET VERTEXDATA POSITION Y(v)
+`if tvpy#>mvpy# then mvpy#=tvpy#
+mvpy#=max(tvpy#,mvpy#)
+next v
+unlock vertexdata
+endif
+endfunction mvpy#
+
+function getlowestvertex(obj,limb)
+if objectexist(obj)=1
+lock vertexdata for limb obj,limb
+vmax=get vertexdata vertex count()
+mvpy#=0
+for v=0 to vmax-1
+tvpy#=GET VERTEXDATA POSITION Y(v)
+mvpy#=min(tvpy#,mvpy#)
+next v
+unlock vertexdata
+endif
+endfunction mvpy#
+
+function getvertexcount(obj,limb)
+if objectexist(obj)=1
+lock vertexdata for limb obj,limb
+vmax=get vertexdata vertex count()
+unlock vertexdata
+endif
+endfunction vmax
+
+function getindexcount(obj,limb)
+if objectexist(obj)=1
+lock vertexdata for limb obj,limb
+imax=get vertexdata index count()
+unlock vertexdata
+endif
+endfunction imax
+
+function limbanglex(obj,limb)
+if objectexist(obj)=1
+if limb>-1
+if limb exist(obj,limb)=1
+a#=limb angle x(obj,limb)
+endif : endif : endif
+endfunction a#
+
+function limbangley(obj,limb)
+if objectexist(obj)=1
+if limb>-1
+if limb exist(obj,limb)=1
+a#=limb angle y(obj,limb)
+endif : endif : endif
+endfunction a#
+
+function limbanglez(obj,limb)
+if objectexist(obj)=1
+if limb>-1
+if limb exist(obj,limb)=1
+a#=limb angle z(obj,limb)
+endif : endif : endif
+endfunction a#
+
+function limbpositionx(obj,limb)
+if objectexist(obj)=1
+if limb>-1
+if limb exist(obj,limb)=1
+lpx#=limb position x(obj,limb)
+endif : endif : endif
+endfunction lpx#
+
+function limbpositiony(obj,limb)
+if objectexist(obj)=1
+if limb>-1
+if limb exist(obj,limb)=1
+lpy#=limb position y(obj,limb)
+endif : endif : endif
+endfunction lpy#
+
+function limbpositionz(obj,limb)
+if objectexist(obj)=1
+if limb>-1
+if limb exist(obj,limb)=1
+lpz#=limb position z(obj,limb)
+endif : endif : endif
+endfunction lpz#
+
+function limboffsetx(obj,limb)
+if objectexist(obj)=1
+if limb>-1
+if limb exist(obj,limb)=1
+lpx#=limb offset x(obj,limb)
+endif : endif : endif
+endfunction lpx#
+
+function limboffsety(obj,limb)
+if objectexist(obj)=1
+if limb>-1
+if limb exist(obj,limb)=1
+lpy#=limb offset y(obj,limb)
+endif : endif : endif
+endfunction lpy#
+
+function limboffsetz(obj,limb)
+if objectexist(obj)=1
+if limb>-1
+if limb exist(obj,limb)=1
+lpz#=limb offset z(obj,limb)
+endif : endif : endif
+endfunction lpz#
+
+function limbexist(obj,limb)
+if objectexist(obj)=1
+if limb>-1
+if limb exist(obj,limb)=1 then lex=1 else lex=0
+endif : endif
+endfunction lex
+
+function findlimb(obj,limbname$)
+if objectexist(obj)=1
+maxlimbobj=get limb count(obj)
+for l=0 to maxlimbobj
+if fast lower$(LIMB NAME$(obj,l))=fast lower$(limbname$) then exitfunction l
+next l
+endif
+endfunction -1
+
+function findnotexactlimb(obj,limbname$)
+if objectexist(obj)=1
+maxlimbobj=get limb count(obj)
+for l=0 to maxlimbobj
+flimbname$=fast lower$(LIMB NAME$(obj,l))
+fchr=instr(flimbname$,limbname$)
+if fchr>0 then exitfunction l
+next l
+endif
+endfunction -1
+
+function objectsize(obj)
+if objectexist(obj)
+objs#=max(object size x(obj),object size y(obj))
+objs#=max(objs#,object size z(obj))
+endif
+endfunction objs#
+
+function freecam(speed#)
+if basic_functions_init=0 then gosub _basic_functions_init
+if GetActiveWindow()<>0
+`freecamcf#=freecamcf#+mousemovez()
+if rightkey()=1 or KEYSTATE(32)=1 then freecamcr#=(freecamcr#-9)
+if leftkey()=1 or KEYSTATE(30)=1 then freecamcr#=(freecamcr#+9)
+if upkey()=1 or KEYSTATE(17)=1 then freecamcf#=(freecamcf#+9)
+if downkey()=1 or KEYSTATE(31)=1 then freecamcf#=(freecamcf#-9)
+freecamcx#=curvevalue(freecamcx#+mousemovey()*0.4,freecamcx#,4)
+freecamcy#=curvevalue(freecamcy#+mousemovex()*0.4,freecamcy#,4)
+if freecamcx#>85 then freecamcx#=85
+if freecamcx#<-85  then freecamcx#=-85
+freecamacr#=curvevalue(freecamcr#,freecamacr#,4)
+freecamacf#=curvevalue(freecamcf#,freecamacf#,4)
+freecamacx#=curveangle(freecamcx#,freecamacx#,1.4)
+freecamacy#=curveangle(freecamcy#,freecamacy#,1.4)
+move camera 0,freecamacf#*speed#
+xrotate camera 0
+yrotate camera wrapvalue(freecamacy#-90)
+zrotate camera 0
+move camera 0,freecamacr#*speed#
+xrotate camera 0
+yrotate camera wrapvalue(freecamacy#+90)
+zrotate camera 0
+xrotate camera freecamacx#
+yrotate camera freecamacy#
+zrotate camera 0
+freecamcr#=0
+freecamcf#=0
+endif
+endfunction
+
+function playmediafullscreen(file$,stretch)
+if file$<>"" : if fileexist(file$)=1
+animl=find free animation()
+
+if animl>0
+load animation file$,animl
+if animation exist(animl)=1
+move camera down 999999999999
+if stretch=0
+play animation animl
+else
+animlx#=animation width(animl)
+animly#=animation height(animl)
+sreenx#=screen width()
+sreeny#=screen height()
+sreena#=sreeny#/sreenx#
+sreenb#=sreenx#/sreeny#
+animla#=animly#/animlx#
+animlb#=animlx#/animly#
+animlc#=1-(sreena#/animla#)
+animld#=1-(sreenb#/animlb#)
+
+if animlx#=0 or animly#=0 then exit
+if stretch=1
+play animation animl,0,0,sreenx#,sreeny#
+endif
+if stretch=2
+if animla#>sreena#
+animlx1#=(sreenx#*0.5)*animlc#
+animly1#=0
+animlx2#=sreenx#-((sreenx#*0.5)*animlc#)
+animly2#=sreeny#
+else
+if animla#<sreena#
+j=sreeny#*animlc#
+animlx1#=0
+animly1#=(sreeny#*0.5)*animld#
+animlx2#=sreenx#
+animly2#=sreeny#-((sreeny#*0.5)*animld#)
+else
+animlx1#=0
+animly1#=0
+animlx2#=sreenx#
+animly2#=sreeny#
+endif
+endif
+
+play animation animl,animlx1#,animly1#,animlx2#,animly2#
+endif
+endif
+while animation playing(animl)=1
+if videounskip=0
+if spacekey()=1 then exit
+if mouseclick()<>0 then exit
+endif
+backdrop on : color backdrop 0 : sync mask 2^0 : sync
+
+endwhile
+while spacekey()=1 : sync : endwhile
+delete animation animl
+move camera up 999999999999
+endif
+endif
+
+endif
+endif
+endfunction
+
+function getfolder(file$)
+f=LAST INSTR(file$,"\")
+folder$=left$(file$,f)
+endfunction folder$
+
+function folderscount(patch$)
+left=LAST INSTR(patch$,"\")-1
+while left>0
+left=LAST INSTR(patch$,"\")-1
+patch$=left$(patch$,left)
+inc dircount
+endwhile
+endfunction dircount
+
+function copyfile(file$,dfile$)
+if fileexist(file$)=1 and fileexist(dfile$)=0
+makefolders(dfile$)
+copy file file$,dfile$
+endif
+endfunction
+
+function makefolders(file$)
+texturefullpatch$=left$(file$,LAST INSTR(file$,"\")-1)
+fc=folderscount(texturefullpatch$)
+dim dires(fc) as string
+leftcurrentpatch$=texturefullpatch$
+for f=0 to fc
+r=INSTR(leftcurrentpatch$,"\")
+if r>0
+dires(f)=left$(leftcurrentpatch$,r-1)
+else
+dires(f)=leftcurrentpatch$
+f=fc
+endif
+leftcurrentpatch$=right$(leftcurrentpatch$,fast len(leftcurrentpatch$)-r)
+
+next f
+currentdir$=""
+for f=0 to fc-1
+if f=0
+currentdir$=dires(f)
+else
+currentdir$=currentdir$+"\"+dires(f)
+endif
+if right$(currentdir$,1)="\"
+currentdir$=left$(currentdir$,fast len(currentdir$)-1)
+file$=currentdir$+right$(file$,(fast len(file$)-fast len(currentdir$))-1)
+else
+if PATH EXIST(currentdir$)=0 then make directory currentdir$
+endif
+
+next f
+undim dires()
+endfunction
+
+function deletealldump(texture$)
+texture$=fast lower$(texture$)
+texture$=replace_text(texture$,"/","\")
+texture$=replace_text(texture$,"\\","\")
+if INSTR(texture$,chr$(58)+"\")
+chr=INSTR(texture$,"\files\")
+if chr>0 then texture$=right$(texture$,len(texture$)-chr-6)
+endif
+endfunction texture$
+
+function fullscreencontrol()
+if basic_functions_init=0 then gosub _basic_functions_init
+if fullscreenmode=1
+if keystate(184)=1
+if keypressed(28)=1
+set window on
+SET WINDOW SIZE 800,600
+fullscreenmode=0
+endif : endif
+else
+if keystate(184)=1
+if keypressed(28)=1
+set window layout 0,0,0
+maximize window
+fullscreenmode=1
+endif : endif
+endif
+activewindow=getactivewindow()
+	if activewindow<>0
+	position mouse sw*0.5,sh*0.5 : hide mouse
+	else
+	show mouse
+	endif
+endfunction
+
+function loading()
+while ok<4
+cls
+if ok=1 then center text screen width()/2,screen height()/2,"loading."
+if ok=2 then center text screen width()/2,screen height()/2,"loading.."
+if ok=3 then center text screen width()/2,screen height()/2,"loading..."
+sync
+inc ok
+endwhile
+endfunction
+
+function getkeystate(key)
+tdll=find free dll()
+load dll "user32.dll",tdll
+kstate=call dll(tdll,"GetKeyState",key)
+delete dll tdll
+if kstate<>0 then kstate=1 else kstate=0
+endfunction kstate
+
+function GetAsyncKeyState(key)
+tdll=find free dll()
+load dll "user32.dll",tdll
+kstate=call dll(tdll,"GetAsyncKeyState",key)
+delete dll tdll
+if kstate<>0 then kstate=1 else kstate=0
+endfunction kstate
+
+function simulatekeypress(key)
+tdll=find free dll()
+load dll "user32.dll",tdll
+call dll tdll,"keybd_event",key,key,0x0001,0
+delete dll tdll
+endfunction
+
+function MapVirtualKey(key,mode)
+tdll=find free dll()
+load dll "user32.dll",tdll
+sckey=call dll(tdll,"MapVirtualKeyA",key,mode)
+delete dll tdll
+endfunction sckey
+
+function saveobject(filename$,obj)
+if object exist(obj)=1
+if fileexist(filename$)=1 then delete file filename$
+save object filename$,obj
+else
+masagebox("Object ["+str$(obj)+"] not exist")
+endif
+endfunction
+
+function savemesh(filename$,mesh)
+if meshexist(mesh)=1
+if fileexist(filename$)=1 then delete file filename$
+save mesh filename$,mesh
+else
+masagebox("mesh ["+str$(mesh)+"] not exist")
+endif
+endfunction
+
+function fixmesh(obj)
+if objectexist(obj)>0
+ml=GET LIMB COUNT(obj)
+for l=0 to ml
+if LIMB HAS MESH(obj,l)=1 then offset limb obj,l,limb offset x(obj,l),limb offset y(obj,l),limb offset z(obj,l) `: rotate limb obj,l,limb angle x(obj,l),limb angle y(obj,l),limb angle z(obj,l) : scale limb obj,l,limb scale x(obj,l),limb scale y(obj,l),limb scale z(obj,l) 
+next l
+endif
+endfunction
+
+function findlimbwithmesh(obj)
+if objectexist(obj)>0
+ml=GET LIMB COUNT(obj)
+for l=0 to ml
+if LIMB HAS MESH(obj,l)=1 then exitfunction l
+next l
+endif
+endfunction 0
+
+function imageexist(timg)
+if timg>0
+if image exist(timg)=1 then exitfunction 1
+endif
+endfunction 0
+
+function saveimage(file$,timg,c)
+if imageexist(timg)
+if fileexist(file$)=1 then rename file file$,newformat(file$,"(original).dds")
+save image file$,timg,c
+endif
+endfunction
+
+function rusfastlower(text$)
+text$=fast lower$(text$)
+text$=ruslower(text$)
+endfunction text$
+
+function ruslower(text$)
+if basic_functions_init=0 then gosub _basic_functions_init
+if text$<>""
+for ruschr=1 to 33
+BOLSHAYABUKVA=1
+while BOLSHAYABUKVA>0
+BOLSHAYABUKVA=INSTR(text$,RUSUP(ruschr))
+if BOLSHAYABUKVA>0
+ttext$=fast left$(text$,BOLSHAYABUKVA-1)+ruslo(ruschr)+fast right$(text$,len(text$)-BOLSHAYABUKVA)
+text$=ttext$
+endif
+endwhile
+next ruschr
+endif
+endfunction text$
+
+function removeedgespaces(text$)
+ returntext$=""
+ if len(text$)>0
+  st=0
+  for c=1 to len(text$)
+   if asc(mid$(text$,c))>32 then st=c : exit
+  next c
+  if st=0
+   rem all sub-spaces
+  else
+   for c=len(text$) to 1 step -1
+    if asc(mid$(text$,c))>32 then en=c : exit
+   next c
+   for c=st to en
+    returntext$=returntext$+mid$(text$,c)
+   next c
+  endif
+ endif
+endfunction returntext$
+
+function countlines(file$)
+local tstrokecount=0
+if fileexist(file$)
+tf=find free file()
+open to read tf,file$
+while file end(1)=0
+read file tf,tmp
+inc tstrokecount
+endwhile
+close file tf
+endif
+endfunction tstrokecount

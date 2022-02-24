@@ -1,0 +1,146 @@
+Rem ***** Included Source File *****
+
+_atlas_textures_init:
+if atlasinit=0
+atlasinit=1
+
+type loadatlastype
+atexture$ as string
+id as integer
+sx as integer
+sy as integer
+fid as integer
+lid as integer
+endtype
+
+type textureatlastype
+aid as integer
+texture$ as string
+px as integer
+py as integer
+sx as integer
+sy as integer
+endtype
+
+dim atlasload(0) as loadatlastype
+dim atlasdata(0) as textureatlastype
+
+endif
+return
+
+function findatlastexture(texture$)
+for a=0 to array count(atlasload())
+if atlasload(a).atexture$=texture$ then exitfunction a
+next a
+endfunction 0
+
+function findatlasdatatexture(texture$)
+for t=0 to array count(atlasdata())
+if atlasdata(t).texture$=texture$ then exitfunction t
+next t
+endfunction 0
+
+function loadatlastexture(texture$)
+texture$=fast lower$(texture$)
+if file exist(texture$)
+atl$=newformat(texture$,".atl")
+gosub _atlas_textures_init
+a=findatlastexture(texture$)
+if a=0
+array insert at bottom(atlasload())
+a=array count(atlasload())
+atlasload(a).atexture$=texture$
+atlasload(a).id=loadimage(texture$,0)
+atlasload(a).sx=image width(atlasload(a).id)
+atlasload(a).sy=image height(atlasload(a).id)
+atlasload(a).fid=array count(atlasdata())
+tfile=find free file()
+open to read tfile,atl$
+while file end(tfile)=0
+read string tfile,ttext$
+ttext$=fast lower$(ttext$)
+if ttext$<>""
+array insert at bottom(atlasdata())
+tid=array count(atlasdata())
+atlasload(a).lid=tid
+atlasdata(tid).aid=a
+l=last instr(ttext$,"[")
+ptext$=right$(ttext$,len(ttext$)-l)
+atlasdata(tid).sy=val(ptext$)
+ttext$=left$(ttext$,len(ttext$)-(len(ptext$)+1))
+l=last instr(ttext$,"[")
+ptext$=right$(ttext$,len(ttext$)-l)
+atlasdata(tid).sx=val(ptext$)
+ttext$=left$(ttext$,len(ttext$)-(len(ptext$)+1))
+l=last instr(ttext$,"[")
+ptext$=right$(ttext$,len(ttext$)-l)
+atlasdata(tid).py=val(ptext$)
+ttext$=left$(ttext$,len(ttext$)-(len(ptext$)+1))
+l=last instr(ttext$,"[")
+ptext$=right$(ttext$,len(ttext$)-l)
+atlasdata(tid).px=val(ptext$)
+ttext$=left$(ttext$,len(ttext$)-(len(ptext$)+2))
+atlasdata(tid).texture$=ttext$
+endif
+endwhile
+close file tfile
+endif
+endif
+endfunction a
+
+function set_all_limbs_atexture(obj) 
+ok=0
+if objectexist(obj)=1
+maxlmb=get limb count(obj)
+for l=0 to maxlmb
+if LIMB HAS MESH(obj,l)=1
+texture$=limb texture name(obj,l,0)
+texture$=fast lower$(texture$)
+if texture$<>""
+ok=set_limb_atexture(obj,l,texture$)
+endif
+endif
+next l
+endif
+endfunction ok
+
+function set_object_atexture(obj,texture$)
+texture$=fast lower$(texture$)
+if objectexist(obj)=1
+l=findlimbwithmesh(obj)
+set_limb_atexture(obj,l,texture$)
+endif
+endfunction
+
+function set_limb_atexture(obj,l,texture$)
+ok=0
+texture$=fast lower$(texture$)
+if objectexist(obj)=1
+tid=findatlasdatatexture(texture$)
+if tid>0
+ok=1
+a=atlasdata(tid).aid
+timg=atlasload(a).id
+texture limb obj,l,timg
+
+atlasx#=atlasload(a).sx : atlasy#=atlasload(a).sy
+txtsx#=atlasdata(tid).sx : txtsy#=atlasdata(tid).sy
+tx#=atlasdata(tid).px : ty#=atlasdata(tid).py
+nsx#=txtsx#/atlasx#
+nsy#=txtsy#/atlasy#
+scale limb texture obj,l,nsx#,nsy#
+lock vertexdata for limb obj,l
+nu#=tx#/atlasx#
+nv#=ty#/atlasy#
+maxv=get vertexdata vertex count()
+for v=0 to maxv
+tu#=get vertexdata u(v) : tv#=get vertexdata v(v)
+set vertexdata uv v,tu#+nu#,tv#+nv#
+next v
+unlock vertexdata
+`else
+`timg=loadimage(texture$,0)
+`texture object obj,l,timg
+endif
+endif
+endfunction ok

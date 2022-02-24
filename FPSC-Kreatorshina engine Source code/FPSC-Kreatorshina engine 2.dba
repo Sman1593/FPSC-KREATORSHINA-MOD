@@ -1,0 +1,174 @@
+rem ***** kreatorshina engine v2.0 (02.07.2020) *****
+use legacy shader compiler
+`#use multithreaded directx
+`SET FAST BOUNDS CALCULATION 1
+
+`setpriorityclass(128)
+`open console
+
+global bindir$ : bindir$=get dir$()
+lastchar=find last char$(bindir$,"\")
+global filesdir$ : filesdir$=left$(bindir$,lastchar)+"files"
+global copyfiles as boolean : copyfiles=0
+global basecopydirectory$ : basecopydirectory$=left$(bindir$,lastchar)+"MyGames\"
+global currentcopydirectory$ : currentcopydirectory$="default"
+global plr
+global cddir$ as string : cddir$=filesdir$ : cd cddir$
+global animupdate
+global currentfog as integer : currentfog=0
+global oldfog as integer
+global tsoundoffset as float
+gosub _setup_mod
+global copydirectory$ : copydirectory$=basecopydirectory$+currentcopydirectory$+"\"
+
+deskw=desktop width()
+deskh=desktop height()
+if disw=0 then disw=deskw
+if dish=0 then dish=deskh
+sw=disw : sh=dish
+
+if framerategame=60
+set display mode disw,dish,32,1
+else
+set display mode disw,dish,32
+endif
+`Change display mode disw,dish,32,1
+
+sync on : sync rate framerategame : hide mouse : autocam off 
+
+gosub _Dynamix_init
+if kmadvancedlight=1 then gosub _advanced_lighting_init
+gosub _km_load_static
+dim animobjects(0) as integer
+dim animobjectsobj(0) as integer
+global pickdoor
+
+gosub _load_entity
+gosub _weapon_init
+
+`load sound "audiobank\music\generic\main.wav",1
+`set sound volume 1,60
+`loop sound 1
+
+position camera 800,800,-800
+gosub _temproominit
+tobj=0
+pbr=1
+global camcold#
+
+dyn simulate
+disable escapekey
+do
+
+dyn fetch results
+dyn update
+
+if keypressed(25)=1
+if pbr=0 then pbr=1 else pbr=0
+AdvLighting_SetPBR(pbr)
+endif
+
+if plrpickobj=0
+if keypressed(20)=1
+oldx#=camera position x() : oldy#=camera position y() : oldz#=camera position z()
+move camera 500
+ray=sc_raycastgroup(1,oldx#,oldy#,oldz#,camera position x(),camera position y(),camera position z(),0)
+move camera -500
+if ray>0 then plrpickobj=SC_getObjectHit()
+endif
+endif
+
+if keystate(42)=1 then mcspeed#=curvevalue(2,mcspeed#,100) else mcspeed#=curvevalue(0.15,mcspeed#,100)
+
+for k=2 to 10
+if keypressed(k) then plr=k-1
+next k
+if keypressed(11) then plr=0
+
+if keypressed(47)=1
+if cammode=0 then cammode=1 else cammode=0
+endif
+
+`if bulletcam=0
+if plr=0 then freecam(mcspeed#) else playercontrolls(plr,cammode)
+`else
+
+`endif
+
+`physics etc.
+dynamix_peakobj()
+updatecharacters()
+gosub _portalsupdate
+gosub _weapon_update
+`Dynamix_update()
+dyn simulate
+sc_update(0)
+
+`sound update
+move camera 5
+setlistener(camera position x(),camera position y(),camera position z(),camera angle x(),camera angle y(),camera angle z())
+move camera -5
+update3dsounds(0)
+gosub _temproomupdate
+
+if km_updatetextures>0
+if timer()-updateimagestimer>1000
+if updateimages()=1
+`temproom update
+texture$=walltextureslist(currentwalltexture)
+texturen$=texture_n(texture$)
+textures$=texture_s(texture$)
+tmpimg=kmloadimage(texture$,0,0)
+texture limb testroom,0,0,tmpimg
+tmpimg=kmloadimage(texturen$,0,0)
+texture limb testroom,0,1,tmpimg
+tmpimg=kmloadimage(textures$,0,0)
+texture limb testroom,0,2,tmpimg
+texture$=floortextureslist(currentfloortexture)
+texturen$=texture_n(texture$)
+textures$=texture_s(texture$)
+tmpimg=kmloadimage(texture$,0,0)
+texture limb testroom,1,0,tmpimg
+tmpimg=kmloadimage(texturen$,0,0)
+texture limb testroom,1,1,tmpimg
+tmpimg=kmloadimage(textures$,0,0)
+texture limb testroom,1,2,tmpimg
+``ggggggggggggggggggggggggggggg
+ttex=loadimage(gunfolder$+"gun_D2.dds",0)
+texture object weapon(1).obj,0,ttex
+ttex=loadimage(gunfolder$+"gun_N.dds",0)
+texture object weapon(1).obj,1,ttex
+ttex=loadimage(gunfolder$+"gun_S.dds",0)
+texture object weapon(1).obj,2,ttex
+`````````````````````````````````
+for l=1 to array count(loadedobjects())
+obj=loadedobjects(l).obj
+if objectexist(obj)
+
+texture$=loadedobjects(l).texture
+texturen$=texture_n(texture$)
+textures$=texture_s(texture$)
+
+ttex=kmloadimage(texture$,0,0)
+texture object obj,0,ttex
+ttex=kmloadimage(texture$,0,1)
+texture object obj,1,ttex
+ttex=kmloadimage(texture$,0,2)
+texture object obj,2,ttex
+
+endif
+next l
+endif
+updateimagestimer=timer()
+endif
+endif
+
+sync mask 0
+sync
+
+if kmadvancedlight=1 then gosub _advanced_lighting_update else sync
+if escapekey() then end
+loop
+gosub _Dynamix_end
+
+end

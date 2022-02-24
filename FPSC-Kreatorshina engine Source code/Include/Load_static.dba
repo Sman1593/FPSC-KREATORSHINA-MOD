@@ -1,0 +1,81 @@
+Rem ***** Included Source File *****
+
+_KM_Load_static:
+
+`Kreatorshina Test
+global segmax
+universefile$="temp\segments\universe.dbo"
+if fileexist(universefile$)=1 then universeloaded=1
+`segmax=loadsegobjects("temp\segments\oseg.bin")
+file$="temp\segments\portalzones.bin"
+loadportals(file$)
+if copyfiles>0 then copyfile(file$,copydirectory$+"Files\"+file$)
+
+file$="temp\segments\portals.bin"
+loadportalwindows(file$)
+if copyfiles>0 then copyfile(file$,copydirectory$+"Files\"+file$)
+
+file$="temp\segments\portallinks.bin"
+loadportallinks(file$)
+if copyfiles>0 then copyfile(file$,copydirectory$+"Files\"+file$)
+
+type staticrooomtype
+obj as integer
+alobj as integer
+visible as boolean
+endtype
+
+dim staticroom(200) as staticrooomtype
+for room=1 to 200
+filename$="temp\segments\room_"+str$(room)+".dbo"
+if fileexist(filename$)
+roomobj=find free object()
+staticroom(room).obj=roomobj
+load object filename$,roomobj,0
+if copyfiles>0 then copyfile(filename$,copydirectory$+"Files\"+filename$)
+if kmadvancedlight=1
+maxl=get limb count(roomobj)
+for l=0 to maxl
+limbname$=limb name$(roomobj,l)
+if left$(limbname$,5)="alpha"
+`teffect=find free effect()
+`normaleffalpha=effect_load("shaders\object\object alpha test.fx",teffect,1,1,2,0,0)
+set limb effect roomobj,l,4
+else
+`teffect=find free effect()
+`normaleffstatic=effect_load("shaders\object\object.fx",teffect,1,1,2,0,0)
+set limb effect roomobj,l,1
+endif
+
+ttex=loadimage("temp\segments\universe0.dds",0)
+texture limb roomobj,l,0,ttex
+ttex=loadimage("temp\segments\universe_n0.dds",0)
+`ttex=loadimage("Media\Map\base_N.dds",0)
+texture limb roomobj,l,1,ttex
+ttex=loadimage("temp\segments\universe_s0.dds",0)
+`ttex=loadimage("Media\Map\base_S.dds",0)
+texture limb roomobj,l,2,ttex
+
+next l
+`set object normals roomobj
+`SET OBJECT SMOOTHING roomobj,0
+
+ccx#=object collision center x(roomobj) : ccy#=object collision center y(roomobj) : ccz#=object collision center z(roomobj)
+
+sc_setcomplexobject(roomobj,1,2,0,0)
+tmeshid=Dynamix_makemesh(roomobj,filename$)
+alroom=Object_Add(roomobj)
+staticroom(room).alobj=alroom
+Object_SetDynamic(alroom,0)
+if room=2
+Object_SetMask(alroom,1,1,4,1)
+Object_SetOccluder(alroom,roomobj)
+else
+Object_SetMask(alroom,1,1,0,1)
+endif
+endif
+
+endif
+next room
+
+return

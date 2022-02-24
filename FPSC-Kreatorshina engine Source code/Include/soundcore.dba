@@ -1,0 +1,543 @@
+Rem ***** Included Source File *****
+
+_sound_core_init:
+if soundcoreinit=0
+
+`-Types
+type soundtype
+id as word
+revaid as word
+revbid as word
+revcid as word
+obj as word
+volume as byte
+maxvolume as byte
+occlusion as float
+freq as word
+maxdist as float
+mindist as float
+pan as integer
+reverb as integer
+x as float
+y as float
+z as float
+newx as float
+newy as float
+newz as float
+mode as boolean
+endtype
+
+type loadedsounstype
+file as string
+sound as word
+time as integer
+endtype
+
+`arrays
+global dim sound(0) as soundtype
+global dim soundonce(0) as soundtype
+global dim loadedsounds(0) as loadedsounstype
+global soundcoreinit as boolean
+global updatesoundstime as integer
+`---------------SOUND LISTENER ETC
+global listener_px as float
+global listener_py as float
+global listener_pz as float
+global listener_ax as float
+global listener_ay as float
+global listener_az as float
+global listennertimer as integer
+global update3dsoundtime as integer
+global lastsoundid
+global lastsoundoid
+listener doppler factor 10
+listener distance factor 1
+listener rollof factor 1
+scale listener 1
+
+soundcoreinit=1
+endif
+return
+
+`--------------SOUND convert
+
+function converttoWAV(file$)
+wavfile$=left$(lower$(file$),len(file$)-4)+".wav"
+oldwavfile$=left$(lower$(file$),len(file$)-4)+"_old"+".wav"
+notwavfile$=left$(lower$(file$),len(file$)-4)+"_sox"+".wav"
+soxfile$=left$(lower$(file$),len(file$)-4)+".sox"
+
+if fileexist(file$)=1
+if fileexist(soxfile$)=0
+
+if fileformat(file$,".wav")=0
+comand$=CHR$(34)+"..\"+file$+CHR$(34)+" "+CHR$(34)+"..\"+wavfile$+CHR$(34)+" remix 1,2 rate 22k"
+soxid=EXECUTE EXECUTABLE("sox\sox.exe",comand$,"sox")
+while executable running(soxid)=1 : endwhile
+make file soxfile$
+else
+comand$=CHR$(34)+"..\"+file$+CHR$(34)+" "+CHR$(34)+"..\"+notwavfile$+CHR$(34)+" remix 1,2 rate 22k" ` rate 44k
+soxid=EXECUTE EXECUTABLE("sox\sox.exe",comand$,"sox")
+while executable running(soxid)=1 : endwhile
+if fileexist(notwavfile$)=1
+rename file wavfile$,oldwavfile$
+rename file notwavfile$,wavfile$
+endif
+make file soxfile$
+endif
+
+if file size(wavfile$)<=44
+if fileformat(file$,".wav")=0
+comand$=CHR$(34)+"..\"+file$+CHR$(34)+" "+CHR$(34)+"..\"+wavfile$+CHR$(34)
+soxid=EXECUTE EXECUTABLE("sox\sox.exe",comand$,"sox")
+while executable running(soxid)=1 : endwhile
+make file soxfile$
+else
+comand$=CHR$(34)+"..\"+file$+CHR$(34)+" "+CHR$(34)+"..\"+notwavfile$+CHR$(34)
+soxid=EXECUTE EXECUTABLE("sox\sox.exe",comand$,"sox")
+while executable running(soxid)=1 : endwhile
+if fileexist(notwavfile$)=1
+rename file wavfile$,oldwavfile$
+rename file notwavfile$,wavfile$
+endif : endif : endif
+
+if file size(wavfile$)<=44
+if fileexist(wavfile$)=1 then delete file wavfile$
+if fileexist(oldwavfile$)=1 then rename file oldwavfile$,wavfile$
+if fileexist(notwavfile$)=1 then delete file notwavfile$
+endif
+
+endif : endif
+endfunction wavfile$
+
+`---------------------------Звук
+
+function newSound()
+s=1 : while sound exist(s)=1 : inc s : endwhile
+endfunction s
+
+function loadsound(file$,mode)
+gosub _sound_core_init
+if fileexist(file$)=1
+file$=lower$(file$) : soundloadtype=0
+
+if fileformat(file$,".ogg")=1
+soundloadtype=2
+else
+if fileexist(file$)=1
+if fileformat(file$,".wav")=1
+for s=1 to array count(loadedsounds())
+if file$=loadedsounds(s).file then soundloadtype=1 : cs=s : s=array count(loadedsounds())
+next s
+endif : endif
+endif
+
+soundA=newSound()
+
+`Если такой звук еще не загружен.
+if soundloadtype=0
+if mode=0
+load sound file$,soundA,1
+else
+load 3dsound file$,soundA,1
+endif
+if sound exist(soundA)=0 then exitfunction 0
+array insert at bottom loadedsounds()
+s=array count(loadedsounds())
+loadedsounds(s).file=file$
+loadedsounds(s).sound=soundA
+loadedsounds(s).time=timer()
+soundA=newSound()
+clone sound soundA,loadedsounds(s).sound
+endif
+`Если такой звук уже сушествует - клонируем его (более быстрая загрузка).
+if soundloadtype=1 then clone sound soundA,loadedsounds(cs).sound : loadedsounds(cs).time=timer()
+`Если тип звука ".ogg"
+if soundloadtype=2
+if mode=0
+load sound file$,soundA,1
+else
+load 3dsound file$,soundA,1
+endif
+if sound exist(soundA)=0 then exitfunction 0
+endif
+endif
+endfunction soundA
+
+function updateloadedsounds(minutes#)
+gosub _sound_core_init
+if timer()-updatesoundstime>240
+minutes#=minutes#*60*1000
+for s=1 to array count(loadedsounds())
+if loadedsounds(s).sound>0
+if sound exist(loadedsounds(s).sound)=1
+if timer()-loadedsounds(s).time>minutes# then stop sound loadedsounds(s).sound : delete sound loadedsounds(s).sound : array delete element loadedsounds(),s
+endif
+endif
+updatesoundstime=timer()
+next s
+endif
+endfunction
+
+function DeleteSound(id)
+deletesnd=1
+if id>0
+if sound exist(id)
+for s=1 to array count(loadedsounds())
+if loadedsounds(s).sound=id then deletesnd=0 : exitfunction 0
+next s
+if deletesnd=1 then stop sound id : delete sound id
+endif : endif
+endfunction deletesnd
+
+function freesounds()
+for s=1 to array count(loadedsounds())
+if loadedsounds(s).sound>0
+if sound exist(loadedsounds(s).sound) then delete sound loadedsounds(s).sound
+endif
+next s
+undim loadedsounds()
+global dim loadedsounds(0) as loadedsounstype
+endfunction
+
+`3D Sound
+
+function update3dsounds(time)
+gosub _sound_core_init
+`if timer()-update3dsoundtime>time
+if listener_py<waterlevel then listenerunderwater=1 else listenerunderwater=0
+for snd=1 to array count(sound())
+if sound(snd).id>0
+if sound exist(sound(snd).id)=1
+if sound playing(sound(snd).id)=1
+
+dist1#=distance(sound(snd).x,sound(snd).y,sound(snd).z,listener_px,listener_py,listener_pz)
+if dist1#<=sound(snd).mindist
+volumecoef#=1
+else
+volumecoef#=1-(dist1#/sound(snd).maxdist)
+if volumecoef#>1 then volumecoef#=1
+if volumecoef#<0 then volumecoef#=0
+endif
+AudioStr=(90+sound(snd).mindist*0.1)*volumecoef#
+
+`if dist1#<sound(snd).maxdist
+`raycast=sc_RayCastGroup(1,sound(snd).x+rndrange(-10,10),sound(snd).y+rndrange(-10,10),sound(snd).z+rndrange(-10,10),listener_px,listener_py,listener_pz,0)
+`if raycast>0 then sound(snd).occlusion=curvevalue(0.88,sound(snd).occlusion,32) else sound(snd).occlusion=curvevalue(1,sound(snd).occlusion,16)
+`AudioStr=(90+sound(snd).mindist)*(volumecoef#*sound(snd).occlusion)
+`endif
+
+if AudioStr <0 THEN AudioStr=0
+IF AudioStr# >100 THEN AudioStr#=100
+volume=curvevalue(AudioStr*(sound(snd).maxvolume*0.01),sound(snd).volume,4)
+sound(snd).volume=volume
+if volume<30 then volume=0
+
+if listenerunderwater=1
+set sound speed sound(snd).id,sound(snd).freq*0.7
+set sound volume sound(snd).id,volume*0.9
+else
+set sound speed sound(snd).id,sound(snd).freq
+set sound volume sound(snd).id,volume
+endif
+
+if sound(snd).mode=0
+if sound(snd).x<>sound(snd).newx or sound(snd).y<>sound(snd).newy or sound(snd).z<>sound(snd).newz
+sndvx#=sound(snd).newx-sound(snd).x
+sndvy#=sound(snd).newy-sound(snd).y
+sndvz#=sound(snd).newz-sound(snd).z
+position sound sound(snd).id,sound(snd).newx,sound(snd).newy,sound(snd).newz
+velocity sound sound(snd).id,sndvx#,sndvy#,sndvz#
+sound(snd).x=sound(snd).newx
+sound(snd).y=sound(snd).newy
+sound(snd).z=sound(snd).newz
+endif
+else
+position sound sound(snd).id,listener_px,listener_py,listener_pz
+velocity sound sound(snd).id,0,0,0
+endif
+
+endif
+endif
+endif
+next snd
+update3dsoundsonce()
+`update3dsoundtime=timer()
+`endif
+endfunction
+
+function update3dsoundsonce()
+if listener_py<waterlevel then listenerunderwater=1 else listenerunderwater=0
+for snd=0 to array count(soundonce())
+if soundonce(snd).id>0
+if sound playing(soundonce(snd).id)=0
+stop sound soundonce(snd).id
+delete sound soundonce(snd).id
+array delete element soundonce(),snd
+endif
+endif
+next snd
+clear console
+for snd=1 to array count(soundonce())
+if soundonce(snd).id>0
+if sound exist(soundonce(snd).id)=1
+if sound playing(soundonce(snd).id)=1
+
+tdist#=distance(soundonce(snd).x,soundonce(snd).y,soundonce(snd).z,listener_px,listener_py,listener_pz)-soundonce(snd).mindist
+if tdist#<0 then tdist#=0
+maxd#=soundonce(snd).maxdist
+if maxd#<1 then maxd#=1
+distcoef#=1-(tdist#/maxd#)
+distcoef#=redusevalue(distcoef#,0,1)
+volumecoef#=(distcoef#*soundonce(snd).maxvolume)
+volumecoef#=redusevalue(volumecoef#,0,100)
+
+position object positioncube,soundonce(snd).x,soundonce(snd).y,soundonce(snd).z
+point object positioncube,listener_px,listener_py,listener_pz
+movefore#=(tdist#*distcoef#)-50
+if movefore#<0 then movefore#=0
+move object positioncube,movefore#
+position sound soundonce(snd).id,object position x(positioncube),object position y(positioncube),object position z(positioncube)
+
+if listenerunderwater=1
+set sound speed soundonce(snd).id,soundonce(snd).freq*0.5
+set sound volume soundonce(snd).id,volumecoef#*0.9
+else
+set sound speed soundonce(snd).id,soundonce(snd).freq
+set sound volume soundonce(snd).id,volumecoef#
+endif
+
+if objectexist(soundonce(snd).obj)>0
+soundonce(snd).newx=object position x(soundonce(snd).obj)
+soundonce(snd).newy=object position y(soundonce(snd).obj)
+soundonce(snd).newz=object position z(soundonce(snd).obj)
+endif
+
+if soundonce(snd).mode=0
+if soundonce(snd).x<>soundonce(snd).newx or soundonce(snd).y<>soundonce(snd).newy or soundonce(snd).z<>soundonce(snd).newz
+sndvx#=soundonce(snd).newx-soundonce(snd).x
+sndvy#=soundonce(snd).newy-soundonce(snd).y
+sndvz#=soundonce(snd).newz-soundonce(snd).z
+position sound soundonce(snd).id,soundonce(snd).newx,soundonce(snd).newy,soundonce(snd).newz
+velocity sound soundonce(snd).id,sndvx#,sndvy#,sndvz#
+soundonce(snd).x=soundonce(snd).newx
+soundonce(snd).y=soundonce(snd).newy
+soundonce(snd).z=soundonce(snd).newz
+endif
+else
+position sound soundonce(snd).id,listener_px,listener_py,listener_pz
+velocity sound soundonce(snd).id,0,0,0
+endif
+
+endif
+endif
+endif
+next snd
+endfunction
+
+function setlistener(x#,y#,z#,rx#,ry#,rz#)
+`if timer()-listennertimer>30/1000
+if listener_px<>x# or listener_py<>y# or listener_pz<>z# or listener_ax<>rx# or listener_ay<>ry# or listener_az<>rz#
+lvx#=x#-listener_px
+lvy#=y#-listener_py
+lvz#=z#-listener_pz
+listener_px=x# : listener_py=y# : listener_pz=z# : listener_ay=ry# : listener_ax=rx# : listener_az=rz#
+position listener x#,y#,z#
+rotate listener rx#,ry#,rz#
+`velocity listener lvx#*10,lvy#*10,lvz#*10
+endif
+`listennertimer=timer()
+`endif
+endfunction
+
+function findsound(id)
+if id>0
+for snd=1 to array count(sound())
+if sound(snd).id=id then exitfunction snd
+next snd
+endif
+endfunction 0
+
+function findsoundonce(id)
+if id>0
+for snd=1 to array count(soundonce())
+if soundonce(snd).id=id then exitfunction snd
+next snd
+endif
+endfunction 0
+
+function positionsoundonce(id,x#,y#,z#)
+snd=findsoundonce(id)
+if snd>0
+soundonce(snd).newx=x# : soundonce(snd).newy=y# : soundonce(snd).newz=z#
+endif
+endfunction
+
+function setsoundoncedistance(id,mindistance#,maxdistance#)
+snd=findsoundonce(id)
+if snd>0
+soundonce(snd).maxdist=maxdistance#
+soundonce(snd).mindist=mindistance#
+dist1#=distance(soundonce(snd).x,soundonce(snd).y,soundonce(snd).z,listener_px,listener_py,listener_pz)
+if dist1#<=mindistance#
+volumecoef#=1
+else
+volumecoef#=1-(dist1#/maxdistance#)
+if volumecoef#>1 then volumecoef#=1
+if volumecoef#<0.0 then volumecoef#=0.0
+endif
+AudioStr=(90+soundonce(snd).mindist*0.1)*volumecoef#
+set sound volume soundonce(snd).id,AudioStr
+
+endif
+endfunction
+
+function positionsound(id,x#,y#,z#)
+snd=findsound(id)
+if snd>0
+sound(snd).newx=x# : sound(snd).newy=y# : sound(snd).newz=z#
+endif
+endfunction
+
+function setsoundvolume(id,maxvolume)
+if maxvolume>100 then sound(snd).maxvolume=100 : if maxvolume<0 then sound(snd).maxvolume=0
+snd=findsound(id)
+if snd>0 then sound(snd).maxvolume=maxvolume
+endfunction
+
+function setsoundoncevolume(id,maxvolume)
+if maxvolume>100 then maxvolume=100 : if maxvolume<0 then maxvolume=0
+snd=findsoundonce(id)
+if snd>0 then soundonce(snd).maxvolume=maxvolume
+endfunction
+
+function setsounddistance(id,mindistance#,maxdistance#)
+snd=findsound(id)
+if snd>0
+sound(snd).maxdist=maxdistance#
+sound(snd).mindist=mindistance#
+dist1#=distance(sound(snd).x,sound(snd).y,sound(snd).z,listener_px,listener_py,listener_pz)
+if dist1#<=mindistance#
+volumecoef#=1
+else
+volumecoef#=1-(dist1#/maxdistance#)
+if volumecoef#>1 then volumecoef#=1
+if volumecoef#<0.0 then volumecoef#=0.0
+endif
+AudioStr=(90+sound(snd).mindist*0.1)*volumecoef#
+set sound volume sound(snd).id,AudioStr
+
+endif
+endfunction
+
+function load3dsound(file$,x#,y#,z#,mode as boolean)
+gosub _sound_core_init
+`if fileexist(file$)
+wav$=converttoWAV(file$)
+tempsound=loadsound(wav$,1)
+if tempsound>0
+array insert at bottom sound()
+snd=array count(sound())
+sound(snd).freq=sound speed(tempsound)
+sound(snd).id=tempsound
+sound(snd).x=x#
+sound(snd).y=y#
+sound(snd).z=z#
+sound(snd).newx=x#
+sound(snd).newy=y#
+sound(snd).newz=z#
+sound(snd).mode=mode
+position sound sound(snd).id,x#,y#,z#
+sound(snd).volume=100
+sound(snd).maxvolume=100
+sound(snd).maxdist=1000
+sound(snd).mindist=0
+dist1#=distance(sound(snd).x,sound(snd).y,sound(snd).z,listener_px,listener_py,listener_pz)
+if dist1#<=sound(snd).mindist
+volumecoef#=1
+else
+volumecoef#=1-(dist1#/sound(snd).maxdist)
+if volumecoef#>1 then volumecoef#=1
+if volumecoef#<0.0 then volumecoef#=0.0
+endif
+AudioStr=(90+sound(snd).mindist*0.1)*volumecoef#
+set sound volume sound(snd).id,AudioStr
+lastsoundid=snd
+sound(snd).occlusion=1
+endif
+`endif
+endfunction tempsound
+
+function delete3dsound(id)
+snd=findsound(id)
+if snd>0
+if id>0
+if sound exist(id)=1
+deletesound(id)
+array delete element sound(),snd
+endif
+endif
+endif
+endfunction
+
+function play3dsoundobj(file$,obj,mind#,maxd#,mode as boolean)
+if objectexist(obj)=1
+tmpsnd=play3dsound(file$,object position x(obj),object position y(obj),object position z(obj),mind#,maxd#,mode)
+soundonce(lastsoundoid).obj=obj
+endif
+endfunction tmpsnd
+
+function preloadsound(file$,mode as boolean)
+if fileexist(file$)
+wav$=newformat(file$,".wav")
+tempsound=loadsound(wav$,mode)
+endif
+endfunction tempsound
+
+function play3dsound(file$,x#,y#,z#,mind#,maxd#,mode as boolean)
+gosub _sound_core_init
+`if fileexist(file$)
+`wav$=converttoWAV(file$)
+wav$=newformat(file$,".wav")
+tempsound=loadsound(wav$,1)
+`tempsoundra=loadsound(wav$,1)
+`tempsoundrb=loadsound(wav$,1)
+`tempsoundrc=loadsound(wav$,1)
+
+if tempsound>0
+array insert at bottom soundonce()
+snd=array count(soundonce())
+soundonce(snd).maxdist=maxd#
+soundonce(snd).mindist=mind#
+dist1#=distance(x#,y#,z#,listener_px,listener_py,listener_pz)
+if dist1#<=mind#
+volumecoef#=1
+else
+volumecoef#=1-(dist1#/maxd#)
+if volumecoef#>1 then volumecoef#=1
+if volumecoef#<0.0 then volumecoef#=0.0
+endif
+AudioStr=(90+soundonce(snd).mindist*0.1)*volumecoef#
+set sound volume tempsound,AudioStr
+soundonce(snd).id=tempsound
+`soundonce(snd).id=tempsoundra
+`soundonce(snd).id=tempsoundrb
+`soundonce(snd).id=tempsoundrc
+soundonce(snd).reverb=1000
+soundonce(snd).volume=AudioStr
+soundonce(snd).maxvolume=100
+soundonce(snd).freq=sound speed(tempsound)
+soundonce(snd).x=x#
+soundonce(snd).y=y#
+soundonce(snd).z=z#
+soundonce(snd).newx=x#
+soundonce(snd).newy=y#
+soundonce(snd).newz=z#
+soundonce(snd).occlusion=1
+soundonce(snd).mode=mode
+position sound soundonce(snd).id,x#,y#,z#
+lastsoundoid=snd
+play sound tempsound
+endif
+`endif
+endfunction tempsound

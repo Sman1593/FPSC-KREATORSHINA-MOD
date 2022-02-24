@@ -1,0 +1,97 @@
+; **** Dark BASIC Professional Project File ****
+; **** Written by Synergy Editor ****
+version=DBP1.00
+project name=segments_convet
+
+; **** source file information ****
+main=segments_convet.dba
+LineMain=43
+include1=include\_basic_functions.dba
+LineInclude1=70
+include2=include\cutpoly.dba
+LineInclude2=1
+include3=include\fpsc_segments_load.dba
+LineInclude3=472
+include4=include\fpsc_segmesh_optimization.dba
+LineInclude4=252
+include5=include\segments_optimization.dba
+LineInclude5=384
+include6=include\setup_mod.dba
+LineInclude6=100
+include7=include\loadsegmentsdata.dba
+LineInclude7=23
+include8=include\loadingstaticentity.dba
+LineInclude8=540
+include9=Include\newentityconvert.dba
+LineInclude9=132
+include10=newatlas\createatlas_tai.dba
+LineInclude10=64
+include11=newatlas\read_tai.dba
+LineInclude11=131
+
+; **** Executable Information  ***
+; build types: exe, media, installer, alone
+executable=e:\serega\Program Files\FPS Creator\bin\FPSCK-segoptimize.exe
+build type=exe
+; ** Media file compression **
+compression=NO
+
+; ** Media file encryption **
+encryption=NO
+; ** Display the card options screen window? **
+card options window=NO
+
+; **** debugger information ****
+; If the editor sets this to yes, it is running in debug mode
+CLI=NO
+CommandLineArguments=
+
+; **** display mode information ****
+app title=segments_convert
+
+; graphics mode options: fullscreen, window, desktop, fulldesktop, hidden
+graphics mode=window
+fullscreen resolution=640x480x32
+
+; arbitrary sizes are valid for windowed mode
+window resolution=800x600
+
+; **** External Files Information ****
+
+; **** Media ****
+; Example entries: media1=graphics\*.jpg
+media root path=E:\Serega\Temp\core\FPSC-Kreatorshina engine 2\
+
+; **** Icons ****
+icon1=E:\Serega\Temp\core\FPSC-Kreatorshina engine\segment.ico
+
+; **** Cursors ****
+
+; **** Version Info ****
+VerComments=
+VerCompany=
+VerFileDesc=
+VerFileNumber=v1.0
+VerInternal=v1.0
+VerCopyright=
+VerTrademark=
+VerFilename=
+VerProduct=
+VerProductNumber=v1.0
+
+; **** To Do ****
+
+; **** Comments ****
+comments1=wb=1
+comments2=wr=2
+comments3=wf=3
+comments4=wl=4
+comments5=empty array segmentdata()
+comments6=print console CHR$(10)
+comments7=
+
+; **** Advanced (setup.ini) configuration ****
+RemoveSafetyCode=NO
+SafeArrays=YES
+LocalTempFolder=NO
+ExternaliseDLLS=NO

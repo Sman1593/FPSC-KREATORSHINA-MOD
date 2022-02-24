@@ -1,0 +1,401 @@
+_advanced_lighting_init:
+if alsetup=0
+global alsetup
+global pointlight
+global spotlight
+global tpointlight
+global tspotlight
+global inputlag
+
+   `advanced lighting setup
+global animationeff
+global normaleff
+global paralaxeff
+global normaleffalpha
+global DecalEff
+global noneeff
+global watereff
+global water
+global waterobj
+global skyobject
+global km_ambient as float : km_ambient=1
+
+global reflectionsample
+global reflection
+global AlphaEff
+`images
+global moonimage
+global cloudsimage
+global starsimage
+global cloudsvolume
+global cloudsnoise
+global allintensity as float
+global laserlight
+
+if km_effectsquality>1 then km_effectsquality=1
+if km_anisotropy>3 then km_anisotropy=3
+
+`posteffectshigh=dish*screenquality
+`if posteffectshigh>1440 then posteffectshigh=1440
+posteffectshigh=1440
+
+advlighting_setup(disw*screenquality,dish*screenquality,posteffectshigh,km_specular,km_subsurface,km_shadowquality)
+if postfilter=1 then postfilter_setup(km_distortion,km_fxaa,km_motionblur,km_ssao,km_ssr,km_godrays,km_bloom,km_lensflare,km_dof)
+if postfilter=0 then allintensity=0.2 else allintensity=1
+km_pointlightintensity=km_pointlightintensity*allintensity
+km_spotlightintensity=km_spotlightintensity*allintensity
+km_directlightintensity=km_directlightintensity*allintensity
+km_ambient_intensity=km_ambient_intensity*allintensity
+
+`=====================load effects===============================
+normaleff=effect_load("shaders\object\object.fx",1,km_effectsquality,km_anisotropy,0,0,0)
+paralaxeff=effect_load("shaders\object\object.fx",5,2,km_anisotropy,0,0,0)
+animationeff=effect_load("shaders\animation\skeletal.fx",2,km_effectsquality,km_anisotropy,0,0,0)
+load effect "shaders\none.fx",3,0
+normaleffalpha=effect_load("shaders\object\object alpha test.fx",4,km_effectsquality,km_anisotropy,0,0,0)
+AlphaEff=AlphaEffect_Load("shaders\transparent\alpha.fx",7,km_effectsquality,km_anisotropy,0)
+DecalEff=Effect_Load("Shaders\Object\Object Decal.fx",6,km_effectsquality,km_anisotropy,0,0,0)
+
+`normaleffstatic=effect_load("shaders\object\object static.fx",5,1,2,0,0,0)
+`normaleffstaticalpha=effect_load("shaders\object\object alpha test static.fx",6,1,2,0,0,0)
+`=================================================================
+
+
+
+   `set camera/fog
+      camera_setrange(km_camerarange)
+      camera_setfov(km_camerafov)
+      fog_setrange(km_fogrange,km_fogscale)
+	  Fog_SetColor(km_fog_r,km_fog_g,km_fog_b,km_fog_r,km_fog_g,km_fog_b)
+   `create sky
+
+      cloudsimage=loadimage("media\sky\clouds.dds",0)
+      moonimage=loadimage("media\sky\moon.dds",0)
+      starsimage=loadimage("media\sky\stars.dds",2)
+
+      sky_create()
+	  if km_dynamicsky>0
+      sky_settexture(cloudsimage,moonimage,starsimage)
+      sky_setdynamic(1)
+
+      cloudsvolume=loadimage("media\sky\clouds volume.dds",0)
+      cloudsnoise=loadimage("media\sky\cloud noise.dds",0)
+      clouds_create()
+      clouds_settexture(cloudsvolume,cloudsnoise)
+
+      sky_setsunangle(45,45,0)
+      sky_setmoonangle(35,65,0,5)
+      else
+	  skyobject=find free object()
+	  load object "skybank\scifi\spc\spc.X",skyobject
+	  tfar=camera range far(0)
+	  tsc#=object size y(skyobject)
+	  if tsc#<>0 then tsc#=100/tsc#
+	  scale object skyobject,15000*tsc#,15000*tsc#,15000*tsc#
+	  set object collision off skyobject
+      `  enable object zbias skyobject,-160000,160000
+     	set object effect skyobject,1
+		`applymultitexture("skybank\ww2\War\",skyobject)
+		ttex=loadimage("Media\Map\base_N.dds",0)
+		texture object skyobject,1,ttex
+		ttex=loadimage("Media\Map\base_S_I.dds",0)
+		texture object skyobject,2,ttex
+		km_Object_SetMask(skyobject,1,0,0,0)
+
+	  endif
+
+      `set directional light
+      directionallight_setvisible(km_directlight)
+      directionallight_setcolor(km_directlightr,km_directlightg,km_directlightb)
+      directionallight_setintensity(km_directlightintensity)
+	  DirectionalLight_SetRange(km_directlightrange,3.0,3.0,3.0)
+
+      ambient_setcolor(km_ambient_r,km_ambient_g,km_ambient_b)
+      ambient_setintensity(km_ambient_intensity)
+      ambient_setemissive(km_ambient_emissive)
+
+
+
+   `create reflections
+      reflectionsample=loadimage("media\map\map reflection.dds",1)
+      reflection=reflection_create()
+      reflection_settexture(reflection,reflectionsample)
+
+   `Create Ocean
+`   if ocean>0
+
+`for wx=0 to 10
+`for wz=0 to 10
+   `Create water
+`      WaterEff=WaterEffect_Load("Shaders\Transparent\water.fx",5,2,2)
+`      Waterobj=find free object()
+`      make object plane Waterobj,3000,3000,2
+`      xrotate object Waterobj,90
+`      position object Waterobj,-3000+(wx*3000),waterlevel,3000+(wz*-3000)
+`      set object effect Waterobj,5
+`      CalculateObjectTangents(Waterobj,0x002||0x010||0x800||0x040)
+`      Water=WaterObject_Add(Waterobj)
+`      WaterObject_SetScale(Water,4,4)
+`      WaterObject_SetSpeed(Water,4,-4)
+`      WaterObject_SetFog(Water,1300,1200)
+`      WaterObject_SetFogColor(Water,40,50,50)
+`      WaterObject_Update(Water)
+`next wx
+`next wz
+`Ocean_Create(2,2)
+`Ocean_SetHeight(waterlevel)
+`endif
+
+   `create spot light
+      spotlight=spotlight_create(0)
+      spotlight_setrange(spotlight,400)
+      spotlight_setcolor(spotlight,150,150,150)
+      spotlight_setintensity(spotlight,km_spotlightintensity)
+      spotlight_setposition(spotlight,0,-20000,0)
+      spotlight_setangle(spotlight,0,0,0,50)
+      spotlight_setshadow(spotlight,km_spotlightshadows)
+
+   `create point light
+      pointlight=pointlight_create(0)
+      pointlight_setrange(pointlight,350)
+      pointlight_setcolor(pointlight,252,150,54)
+      pointlight_setposition(pointlight,0,-20000,0)
+      pointlight_setshadow(pointlight,0)
+	  pointlight_setintensity(pointlight,km_pointlightintensity)
+
+   `create point light
+      laserlight=pointlight_create(0)
+      pointlight_setrange(laserlight,10)
+      pointlight_setcolor(laserlight,255,0,0)
+      pointlight_setposition(laserlight,0,-20000,0)
+      pointlight_setshadow(laserlight,0)
+	  pointlight_setintensity(laserlight,km_pointlightintensity)
+
+   `Create Particles
+   global FireEmitter
+      FireEmitter=Emitter_Load("Media\emitters\fire.emt")
+      Emitter_SetVisible(FireEmitter,1)
+      Emitter_SetPosition(FireEmitter,0,-129,400)
+
+   `start timer
+      global timerval as float
+      global timerframe as float
+      global timerstart as float
+      global timerupdate as integer
+      global timerelapsed as integer
+      global timertarget  as float
+      timerelapsed=10 `elapsed evey 10 cycles
+      timertarget=16.66 `target 60 frames
+      timerstart=timer()
+
+      alsetup=1
+      endif
+return
+
+_advanced_lighting_update:
+if alsetup=1
+
+if keystate(16)=1
+move camera 100
+Emitter_SetPosition(FireEmitter,camera position x(),camera position y(),camera position z())
+move camera -100
+endif
+
+if keypressed(79)=1
+	move camera 100
+   `create point light
+	tpointlight=pointlight_create(0)
+	pointlight_setrange(tpointlight,350)
+    trgbr=rnd(255) : trgbg=rnd(255) : trgbb=rnd(255)
+    pointlight_setcolor(tpointlight,trgbr,trgbg,trgbb)
+    pointlight_setintensity(tpointlight,km_pointlightintensity)
+	pointlight_setposition(tpointlight,camera position x(),camera position y(),camera position z())
+	pointlight_setshadow(tpointlight,km_pointlightshadows)
+	move camera -100
+endif
+
+if keystate(80)=1
+	move camera 100
+    pointlight_setposition(tpointlight,camera position x(),camera position y(),camera position z())
+	move camera -100
+endif
+
+if keypressed(75)=1
+`move camera 100
+      tspotlight=spotlight_create(0)
+      spotlight_setrange(tspotlight,1000)
+      trgbr=rnd(255) : trgbg=rnd(255) : trgbb=rnd(255)
+      spotlight_setcolor(tspotlight,trgbr,trgbg,trgbb)
+      spotlight_setintensity(tpointlight,km_spotlightintensity)
+      spotlight_setposition(tspotlight,camera position x(),camera position y(),camera position z())
+      spotlight_setangle(tspotlight,camera angle x(),camera angle y(),camera angle z(),90)
+      spotlight_setshadow(tspotlight,min(1,km_shadowquality))
+endif
+
+if keystate(76)=1
+      spotlight_setposition(tspotlight,camera position x(),camera position y(),camera position z())
+      spotlight_setangle(tspotlight,camera angle x(),camera angle y(),camera angle z(),90)
+endif
+
+	screenfps=screen fps()
+   text 20,20," fps = "+str$(screenfps)
+   remstart
+   text 20,40," objects  = "+str$(vfc_visiblecount(0))
+   text 20,60," baches  = "+str$(vfc_visiblecount(1))+" (draw calls "+str$(al_batchdrawcount+1)+")"
+   text 20,80," spot lights = "+str$(vfc_visiblecount(2))
+   text 20,100," point lights = "+str$(vfc_visiblecount(3))
+   text 20,120," ambient box = "+str$(vfc_visiblecount(4))
+   text 20,140," ambient sphere = "+str$(vfc_visiblecount(5))
+   text 20,160," alpha objects = "+str$(vfc_visiblecount(6))
+   text 20,170,"F = FLASHLIGHT"
+   text 20,180,"T = SPAWN A PLAYER"
+   text 20,190,"NUM1 = CREATE Point light, NUM2 = Move Created Point light"
+   text 20,200,"NUM4 = CREATE Spot light, NUM5 = Move Created Spot light"
+   text 20,210,"LCtrl = Rotate sunlight"
+   text 20,220,"Mouse scroll = increase,decrease Clouds Density"
+   text 20,230,"R = Teleport player"
+remend
+
+   `exit
+ `     if escapekey()=1 then advlighting_end()
+
+   `update timer
+      inc timerupdate
+      if timerupdate>timerelapsed
+         timerframe=(timerframe*0.5)+((timer()-timerstart)*0.5)
+         timerstart=timer()
+         timerval=curvevalue(timerval,(timerframe/timertarget)/timerelapsed,2)
+         timerupdate=1
+      endif
+
+   `set light position
+ if km_dynamicsky>0
+ if controlkey()=1 then sky_setsunangle(-camera angle x(),camera angle y()+180,camera angle z())
+else
+position object skyobject,camera position x(),camera position y(),camera position z()
+if keystate(51)=1 then dec km_ambient,0.1
+if keystate(52)=1 then inc km_ambient,0.1
+ambient_setcolor(km_ambient_r*km_ambient,km_ambient_g*km_ambient,km_ambient_b*km_ambient)
+ambient_setintensity(km_ambient_intensity*km_ambient)
+ambient_setemissive(km_ambient_emissive*km_ambient)
+endif
+
+     if keypressed(34)=1
+       if Apointlighton=0 then Apointlighton=1 else Apointlighton=0
+     endif
+     
+     if Apointlighton=1 then pointlight_setposition(pointlight,camera position x(),camera position y(),camera position z())
+    
+     if keypressed(33)=1
+       if flashlighton=0 then flashlighton=1 else flashlighton=0
+     endif
+     
+     if flashlighton=1
+        move camera left 5
+         spotlight_setposition(spotlight,camera position x(0),camera position y(0)-10,camera position z(0))
+         spotlight_setangle(spotlight,camera angle x(0),camera angle y(0),camera angle z(0),80)
+        move camera left -5
+      endif
+
+   `set clouds density
+      clouds_setdensity(al_cloudsdensity+mousemovez()*0.01)
+
+   `Capture reflection
+      if keypressed(207)=1
+         Reflection_SetPosition(Reflection,camera position x(0),camera position y(0),camera position z(0))
+         Reflection_Capture(Reflection)
+         saveimage("Media\Map\Map Reflection.dds",reflectionsample,0)
+      endif
+
+`if ocean>0
+`Toggle under water
+`if camera position y(0)<waterlevel then WaterObject_SetUnderWater(Water) else WaterObject_SetUnderWater(-1)
+remstart
+   `Under Water
+      OceanHeight#=Ocean_GetHeight(camera position x(),camera position z())
+      if AL_WaterUnder=-1
+         if camera position y()<OceanHeight#+2
+            position camera camera position x(),camera position y()-5,camera position z()
+            Ocean_SetUnderWater(1)
+         endif
+      else
+         if camera position y()>OceanHeight#-2
+           position camera camera position x(),camera position y()+5,camera position z()
+            Ocean_SetUnderWater(0)
+         endif
+      endif
+remend
+`endif
+
+
+	`advlighting update
+	fullscreencontrol()
+
+advlighting_update(timerval)
+
+else
+gosub _advanced_lighting_init
+endif
+return
+
+function km_Object_SetMask(Object as integer,iAdvLighting as boolean,iShadow as boolean,iDirectionalShadow as integer,iReflectionCapture as boolean)
+if objectexist(Object)
+      if iAdvLighting=1 then tMask=2^AL_Camera(1)
+      if iDirectionalShadow>0 then tMask=tMask+(2^AL_DirLightCamera(1))+(2^AL_DirLightCamera(2))
+      if iShadow=1
+         for c=1 to 6:tMask=tMask+(2^AL_SpotLightCamera(c)):next c
+      endif
+    set object mask Object,tMask
+   endif
+endfunction
+
+function applymultitexture(folder$,obj)
+if objectexist(obj)
+maxl=get limb count(obj)
+for l=0 to maxl
+texname$=limb texture name(obj,l)
+ttex=loadimage(folder$+texname$,0)
+if ttex=0 then ttex=loadimage("Media\Map\base_D2.dds",0)
+texture limb obj,l,0,ttex
+next l
+endif
+endfunction
+
+function texture_n(texture$)
+if fileformat(texture$,"d2.dds")=1
+texturen$=left$(texture$,len(texture$)-6)+"b.dds"
+if fileexist(texturen$)=0 then texturen$=left$(texture$,len(texture$)-6)+"n.dds"
+if fileexist(texturen$)=0 then texturen$=left$(texture$,len(texture$)-6)+"p.dds"
+else
+if fileformat(texture$,"d.dds")=1
+texturen$=left$(texture$,len(texture$)-5)+"b.dds"
+if fileexist(texturen$)=0 then texturen$=left$(texture$,len(texture$)-5)+"n.dds"
+if fileexist(texturen$)=0 then texturen$=left$(texture$,len(texture$)-5)+"p.dds"
+else
+texturen$=left$(texture$,len(texture$)-4)+"b.dds"
+if fileexist(texturen$)=0 then texturen$=left$(texture$,len(texture$)-4)+"n.dds"
+if fileexist(texturen$)=0 then texturen$=left$(texture$,len(texture$)-4)+"p.dds"
+endif
+endif
+endfunction texturen$
+
+function texture_s(texture$)
+if fileformat(texture$,"d2.dds")=1
+textures$=left$(texture$,len(texture$)-6)+"s.dds"
+else
+if fileformat(texture$,"d.dds")=1
+textures$=left$(texture$,len(texture$)-5)+"s.dds"
+else
+textures$=left$(texture$,len(texture$)-4)+"s.dds"
+endif
+endif
+endfunction textures$
+
+function kmloadimage(texture$,mode,state)
+ttex=loadimage(texture$,mode)
+if ttex=0
+if state=0 then ttex=loadimage("Media\Map\base_D2.dds",mode)
+if state=1 then ttex=loadimage("Media\Map\base_N.dds",mode)
+if state=2 then ttex=loadimage("Media\Map\base_S.dds",mode)
+endif
+endfunction ttex

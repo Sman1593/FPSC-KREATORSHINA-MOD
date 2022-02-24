@@ -1,0 +1,1938 @@
+Rem ***** Included Source File *****
+
+_segments_setup:
+if segmentssetup=0
+global segmentssetup as boolean
+global segdir$ as string : segdir$="segments\"
+global maxx as integer
+global maxy as integer
+global lmax as integer
+global minx as integer
+global miny as integer
+global lmin as integer
+global mapselection
+global mapscaler
+global mapground
+global maprotate
+global maporient
+global mapsymbol
+global maptile
+global selectionbankoffset=20000
+global temporarymeshobject=65500
+global universebuildobjstartoffset=70001
+global universebuildobjendoffset=166000
+global lastsegobj
+global segidmastermax : segidmastermax=100
+global meshbankmax=0
+global meshbankoffset=1000
+global csgobj as integer
+`global bigcsgobj as integer
+`global staticposition
+`staticposition=makeobjectsphere(25,0)
+`set object wireframe staticposition,1
+`color object staticposition,rgb(255,0,0)
+`types
+gosub _static_data_init
+
+type visualportaltype
+x as integer
+y as integer
+lay as integer
+endtype
+
+type segmentprofileheadertype
+partmax as integer
+lastmeshmax as integer
+preventai as integer
+endtype
+
+type segmentprofileblueprinttype
+mode as integer
+symbol as integer
+floorsizey as integer
+sidesizex as integer
+sidesizey as integer
+sidesizez as integer
+endtype
+
+type segmentprofilevistype
+overlay as integer
+f as integer
+r as integer
+wb as integer
+wr as integer
+wf as integer
+wl as integer
+owb as integer
+owr as integer
+owf as integer
+owl as integer
+ctl as integer
+ctr as integer
+cbr as integer
+cbl as integer
+octl as integer
+octr as integer
+ocbr as integer
+ocbl as integer
+portalmode as integer
+endtype
+
+type fpscsegmentprofilevistype
+angle as byte
+vis as segmentprofilevistype
+mode as integer
+endtype
+
+type segmentprofileproperties
+groundmode as integer
+kindof as integer
+endtype
+
+type segmentprofiletype
+partmode as integer
+meshname$ as string
+meshid as integer
+actuallimb as integer
+offx as float
+offy as float
+offz as float
+scalex as integer
+scaley as integer
+scalez as integer
+rotx as float
+roty as float
+rotz as float
+tex$ as string
+texd$ as string
+texn$ as string
+texs$ as string
+effect$ as string
+texid as integer
+texdid as integer
+texiid as integer
+texnid as integer
+texsid as integer
+effectid as integer
+transparency as integer
+colmode as integer
+vis as segmentprofilevistype
+blueprint as segmentprofileblueprinttype
+properties as segmentprofileproperties
+csgmesh$ as string
+csgmode as integer
+csgimmune as integer
+lightmode as integer
+multimeshmode as integer
+multimeshstart as integer
+material as integer
+endtype
+` arrays
+dim sph(segidmastermax) as segmentprofileheadertype
+dim spf(segidmastermax,64) as segmentprofiletype
+dim meshbank$(100)
+dim selectionbank$(100)
+dim selectionbanklocal$(100)
+segmentssetup=1
+endif
+return
+
+function fpscloadsegments()
+mapfileloadmap()
+segment_loadbank()
+
+rem Shadow maps for processing data
+dim mapobj(lmax,maxx,maxy)
+dim mapcsg(lmax,maxx,maxy)
+dim fss(0) as fpscstaticsegmenttype
+undim vseg()
+dim vseg(lmax,maxx,maxy) as fpscsegmentprofilevistype
+rem Free old objects if any
+if lastsegobj>=segobjstart then delete objects segobjstart,lastsegobj
+
+rem Construct scene
+csgpassmax=2
+segobjstart=universebuildobjstartoffset
+segobj=segobjstart
+
+for csgpass=1 to csgpassmax
+
+rem Reset workvars
+segobj=segobjstart
+highesty=0
+
+for lay=0 to lmax
+for y=0 to maxy-1
+for x=0 to maxx-1
+for olay=0 to 1
+
+rem MAP and MAPOLAY
+if olay=0 then tolaymax=0
+if olay=1
+tolaymax=0 : olayindex=mapolay(lay,x,y)
+while olaylist(olayindex,tolaymax)>0 and tolaymax<lmax : inc tolaymax : endwhile
+dec tolaymax
+endif
+
+if tolaymax>=0
+for olayti=0 to tolaymax
+if olay=0 then mapid=map(lay,x,y)
+if olay=1 then mapid=olaylist(olayindex,olayti)
+if mapid<>0
+grideditgetmapvalues(mapid)
+if object exist(selectionbankoffset+mapselection)=1
+rem Set segment identity
+seg=mapselection
+
+if csgpass=1 `Pass 1 - Create
+rem check if segment uses CSG, in which case clone not instance
+tusingcsgforthisegment=0
+
+for tp=sph(seg).lastmeshmax to sph(seg).partmax
+if spf(seg,tp).partmode=1
+if spf(seg,tp).csgmode=0
+tusingcsgforthisegment=1
+endif
+endif
+next tp
+
+rem clone for manipulation of segment (clone too draining)
+clone object segobj,selectionbankoffset+mapselection
+
+rem setup segment for universe conversion
+set object collision off segobj
+position object segobj,50+(x*100),50+(lay*100),((y*-100)-50)
+if (100+(lay*100))>highesty then highesty=(100+(lay*100))
+segment_customisesinglesegment(segobj,lay,x,y)
+if olay=0 then mapobj(lay,x,y)=segobj
+
+rem initially hide all non-basic meshes
+for tlimb=sph(seg).lastmeshmax+1 to sph(seg).partmax
+if limb exist(segobj,tlimb)=1 then hide limb segobj,tlimb
+next tlimb
+
+rem show multimesh replacements, hide base mesh in those cases
+for tlimb=0 to sph(seg).lastmeshmax
+tmultimesh=spf(seg,tlimb).multimeshmode
+if tmultimesh=1
+if limb visible(segobj,tlimb)=1
+if spf(seg,tlimb).multimeshstart>0
+r=rnd(2)
+if r=0 then tlimbchange=tlimb
+if r=1 then tlimbchange=spf(seg,tlimb).multimeshstart+0
+if r=2 then tlimbchange=spf(seg,tlimb).multimeshstart+1
+if limb exist(segobj,tlimbchange)=0 then tlimbchange=tlimb
+hide limb segobj,tlimb : show limb segobj,tlimbchange
+endif
+endif
+endif
+next tlimb
+
+for tlimb=0 to sph(seg).lastmeshmax
+if limb visible(segobj,tlimb)=1
+`////////////ADD new static object to array
+mesh$=spf(seg,tlimb).meshname$
+tex$=spf(seg,tlimb).tex$
+
+if segrand=1
+if spf(seg,tlimb).multimeshmode=1
+r=rnd(2)
+if r=1
+spf(seg,tlimb).tex$=left$(tex$,len(tex$)-9)+"02_D2.dds"
+spf(seg,tlimb).meshname$=left$(mesh$,len(mesh$)-3)+"b.x"
+if file exist(spf(seg,tlimb).tex$)=0 then spf(seg,tlimb).tex$=tex$
+if file exist(spf(seg,tlimb).meshname$)=0 then spf(seg,tlimb).meshname$=mesh$
+endif
+if r=2
+spf(seg,tlimb).tex$=left$(tex$,len(tex$)-9)+"03_D2.dds"
+spf(seg,tlimb).meshname$=left$(mesh$,len(mesh$)-3)+"c.x"
+if file exist(spf(seg,tlimb).tex$)=0 then spf(seg,tlimb).tex$=tex$
+if file exist(spf(seg,tlimb).meshname$)=0 then spf(seg,tlimb).meshname$=mesh$
+endif
+endif
+mesh$=spf(seg,tlimb).meshname$
+tex$=spf(seg,tlimb).tex$
+endif
+
+newstatic=loadobject(mesh$,tex$,0,0)
+
+tlpx#=limbpositionx(segobj,tlimb)
+tlpy#=limbpositiony(segobj,tlimb)
+tlpz#=limbpositionz(segobj,tlimb)
+
+fseg=addstaticsegment(lay,x,y,seg,tlimb,newstatic)
+
+
+fss(fseg).px=tlpx#
+fss(fseg).py=tlpy#
+fss(fseg).pz=tlpz#
+fss(fseg).rx=spf(seg,tlimb).rotx
+fss(fseg).rz=spf(seg,tlimb).rotz
+if fss(fseg).iswall>0 or fss(fseg).isoutwall>0
+
+osx#=object size x(newstatic,1)
+osy#=object size y(newstatic,1)
+upy#=(osy#*0.5)-0.1
+downy#=(osy#*-0.5)+0.1
+leftx#=(osx#*-0.5)+0.1
+rightx#=(osx#*0.5)-0.1
+
+up=intersect object(newstatic,0,upy#,-100,0,upy#,10)
+if up>0 then fss(fseg).upsize=100-up
+
+down=intersect object(newstatic,0,downy#,-100,0,downy#,10)
+if down>0 then fss(fseg).downsize=100-down
+
+left#=intersect object(newstatic,leftx#,0,-100,leftx#,0,10)
+leftup#=intersect object(newstatic,leftx#,upy#,-100,leftx#,upy#,10)
+leftdown#=intersect object(newstatic,leftx#,downy#,-100,leftx#,downy#,10)
+midleft=(left#+leftup#+leftdown#)/3
+if midleft>0 then fss(fseg).leftsize=100-midleft
+
+right#=intersect object(newstatic,rightx#,0,-100,rightx#,0,10)
+rightup#=intersect object(newstatic,rightx#,upy#,-100,rightx#,upy#,10)
+rightdown#=intersect object(newstatic,rightx#,downy#,-100,rightx#,downy#,10)
+midright=(right#+rightup#+rightdown#)/3
+if midright>0 then fss(fseg).rightsize=100-midright
+
+`PRINT CONSOLE "[" : PRINT CONSOLE fseg : PRINT CONSOLE "]"
+`PRINT CONSOLE " [" : PRINT CONSOLE up : PRINT CONSOLE "]"
+`PRINT CONSOLE " [" : PRINT CONSOLE down : PRINT CONSOLE "]"
+`PRINT CONSOLE " [" : PRINT CONSOLE left : PRINT CONSOLE "]"
+`PRINT CONSOLE "[" : PRINT CONSOLE right : PRINT CONSOLE "]"
+`PRINT CONSOLE CHR$(10)
+endif
+
+fss(fseg).ry=wrapvalue(object angle y(segobj)+spf(seg,tlimb).roty)
+endif
+next tlimb
+
+endif `end csgpass=1
+
+
+if csgpass=2 `Pass 2 - Add CSG, Lights and Entities
+rem add any csg punch references
+for tp=sph(seg).lastmeshmax to sph(seg).partmax
+if spf(seg,tp).partmode=1
+if spf(seg,tp).csgmode=0
+rem check boundbox of CSGPUNCH with surrounding segments
+for surrl=lay-1 to lay+1
+for surry=y-1 to y+1
+for surrx=x-1 to x+1
+if surrl>=0 and surrl<lmax
+if surry>=0 and surry<maxy
+if surrx>=0 and surrx<maxx
+rem for each segment-limb (not this seg though)
+mapid=map(surrl,surrx,surry)
+if mapid<>0
+grideditgetmapvalues(mapid)
+if objectexist(selectionbankoffset+mapselection)=1
+surrseg=mapselection
+surrobj=mapobj(surrl,surrx,surry)
+for surrlimb=0 to sph(surrseg).lastmeshmax
+rem only non-immune meshes
+if spf(surrseg,surrlimb).csgimmune=0 and spf(surrseg,surrlimb).partmode=0
+rem first ensure meshes affected by a CSG must use base mesh, not multimesh
+if spf(surrseg,surrlimb).multimeshstart>0
+if limb visible(surrobj,spf(surrseg,surrlimb).multimeshstart+0)=1 or limb visible(surrobj,spf(surrseg,surrlimb).multimeshstart+1)=1
+show limb surrobj,surrlimb
+hide limb surrobj,spf(surrseg,surrlimb).multimeshstart+0
+hide limb surrobj,spf(surrseg,surrlimb).multimeshstart+1
+endif
+endif
+
+rem if punch limb collides with surrounding segment-limb
+tpactual=spf(seg,tp).actuallimb
+if limb visible(surrobj,surrlimb)=1 and spf(surrseg,surrlimb).partmode=0
+if limb collision(segobj,tpactual,surrobj,surrlimb)=1
+fseg=findstaticsegment(surrl,surrx,surry,surrseg,surrlimb)
+fsega=getsegmentangle(surrl,surrx,surry)
+lapx#=limb position x(segobj,tpactual)
+lapy#=limb position y(segobj,tpactual)
+lapz#=limb position z(segobj,tpactual)
+lbpx#=limb position x(surrobj,surrlimb)
+lbpy#=limb position y(surrobj,surrlimb)
+lbpz#=limb position z(surrobj,surrlimb)
+laax#=limb angle x(segobj,tpactual)
+laay#=limb angle y(segobj,tpactual)
+laaz#=limb angle z(segobj,tpactual)
+lbax#=limb angle x(surrobj,surrlimb)
+lbay#=limb angle y(surrobj,surrlimb)
+lbaz#=limb angle z(surrobj,surrlimb)
+lbfx#=limb offset x(surrobj,surrlimb)
+lbfy#=limb offset y(surrobj,surrlimb)
+lbfz#=limb offset z(surrobj,surrlimb)
+fss(fseg).csg=1
+
+fss(fseg).offx=lbfx#
+fss(fseg).offy=lbfy#
+fss(fseg).offz=lbfz#
+fss(fseg).px=lbpx#
+fss(fseg).py=lbpy#
+fss(fseg).pz=lbpz#
+fss(fseg).rx=lbax#
+fss(fseg).ry=lbay#
+fss(fseg).rz=lbaz#
+
+rotate limb segobj,tpactual,0,0,0,1
+rotate limb surrobj,surrlimb,0,0,0,1
+ttempobj1=find free object()
+make object from limb ttempobj1,segobj,tpactual
+ttempobj2=find free object()
+make object from limb ttempobj2,surrobj,surrlimb
+`ttempobj2=loadobject(fss(fseg).meshname$,fss(fseg).texture$,0,0)
+
+`newcsgobj=makeobjectbox(object size x(ttempobj1),object size y(ttempobj1),object size z(ttempobj1))
+
+`if fileformat(spf(seg,tpactual).meshname$,".fpe")=0
+if spf(seg,tp).partmode=1
+newcsgobj=cloneobject(ttempobj1)
+csgfseg=addstaticsegment(lay,x,y,seg,tp,newcsgobj)
+fss(csgfseg).px=lapx#
+fss(csgfseg).py=lapy#
+fss(csgfseg).pz=lapz#
+fss(csgfseg).rx=laax#
+fss(csgfseg).rz=laaz#
+fss(csgfseg).ry=wrapvalue(object angle y(segobj)+laay#)
+`fss(csgfseg).texture$="texturebank\common\baseweld.dds"
+endif
+
+position object ttempobj1,lapx#,lapy#,lapz#
+position object ttempobj2,lbpx#,lbpy#,lbpz#
+rotate object ttempobj1,laax#,laay#,laaz#
+rotate object ttempobj2,lbax#,lbay#,lbaz#
+
+
+rem perform CSG Punch on neighboring limb now
+`updatemesh(ttempobj2,0)
+lwm=findlimbwithmesh(ttempobj2)
+if getvertexcount(ttempobj2,lwm)<=24 then meshisbox=1 else meshisbox=0
+perform csg difference ttempobj2,ttempobj1
+set object smoothing ttempobj2,25
+tiswall=segmentiswall(fss(fseg).lay,fss(fseg).x,fss(fseg).y,fss(fseg).obj)
+if tiswall=0 then tiswall=segmentisoutwall(fss(fseg).lay,fss(fseg).x,fss(fseg).y,fss(fseg).obj)
+if tiswall=1 or tiswall=3 then rotate object ttempobj2,lbax#,lbay#+90,lbaz#
+position object ttempobj2,0,0,0
+`if meshisbox=1 then AutoUVMapping(ttempobj2,0,-1,100,100,1,1,max(object size x(ttempobj2)*0.5,object size z(ttempobj2)*0.5),object size y(ttempobj2)*0.5)
+rotate object ttempobj2,lbax#,lbay#,lbaz#
+position object ttempobj2,lbpx#,lbpy#,lbpz#
+
+`perform csg intersection ttempobj2,ttempobj1
+
+newstatic=fss(fseg).obj
+delete object fss(fseg).obj
+clone object newstatic,ttempobj2
+
+`globalcsgobj=optimizemesh(ttempobj1,globalcsgobj)
+delete object ttempobj1
+delete object ttempobj2
+hide limb surrobj,surrlimb
+endif
+endif
+endif
+next surrlimb
+endif
+endif
+endif
+endif
+endif
+next surrx
+next surry
+next surrl
+endif
+endif
+next tp
+`
+rem restore map data
+if olay=0 then mapid=map(lay,x,y)
+if olay=1 then mapid=olaylist(olayindex,olayti)
+grideditgetmapvalues(mapid)
+endif `csgpass=2
+
+rem Increment segment objid
+inc segobj
+lastsegobj=segobj
+rem When run out of segments to build map, leave immediately
+if segobj>=universebuildobjendoffset then lay=lmax : y=maxy-1 : x=maxx-1 : olay=1 : olayti=tolaymax
+endif
+endif
+next olayti
+endif
+next olay
+next x
+next y
+next lay
+
+next csgpass
+if lastsegobj>=segobjstart then delete objects segobjstart,lastsegobj
+minx=maxx : miny=maxy : lmin=lmax
+maxx=0 : maxy=0 : lmax=0
+for s=0 to array count(fss())
+if fss(s).obj>0
+seg=fss(s).seg
+lay=fss(s).lay
+x=fss(s).x
+y=fss(s).y
+lmin=min(lay,lmin) : minx=min(x,minx) : miny=min(y,miny) 
+lmax=max(lay,lmax) : maxx=max(x,maxx) : maxy=max(y,maxy)
+if fss(s).csg=1 then vseg(lay,x,y).vis.overlay=1
+if object exist(fss(s).obj)=0 then array delete element fss(),s
+endif
+next s
+`if globalcsgobj>0
+`filename$="temp\segments\globalcsgobj.dbo"
+`if file exist(filename$)=1 then delete file filename$
+``save object filename$,globalcsgobj
+`endif
+
+`gosub _segments_optimized_init
+optimizemeshes()
+savesegmentsarray("temp\segments\fss.bin")
+
+savevseg("temp\segments\vseg.bin")
+
+optimizestatic()
+
+endfunction
+
+
+function findstatic(obj)
+if objectexist(obj)=1
+smax=array count(fss())
+for s=0 to smax
+if fss(s).obj=obj then exitfunction s
+next s
+endif
+endfunction 0
+
+function setstaticwireframe(mode)
+for os=1 to array count(oseg())
+if objectexist(oseg(os).obj)=1 then set object wireframe oseg(os).obj,mode
+next os
+for s=0 to array count(fss())
+if objectexist(fss(s).obj)=1
+set object wireframe fss(s).obj,mode
+mobj=findloadedobject(fss(s).meshname$,fss(s).texture$)
+if mobj>0 then set object wireframe mobj,mode
+endif
+next s
+if mode>0
+SET STATIC PORTALS ON : set static objects wireframe on
+else
+SET STATIC PORTALS Off : set static objects wireframe off
+endif
+endfunction
+
+function findstaticsegment(lay,x,y,seg,limb)
+for s=0 to array count(fss())
+if fss(s).lay=lay
+if fss(s).x=x
+if fss(s).y=y
+if fss(s).seg=seg
+if fss(s).limb=limb then exitfunction s
+endif : endif : endif : endif
+next s
+endfunction 0
+
+function addstaticsegment(lay,x,y,seg,tlimb,obj)
+fseg=array count(fss())
+setstaticlimbvisual(lay,x,y,seg,tlimb,obj)
+fss(fseg).obj=obj
+fss(fseg).seg=seg
+fss(fseg).limb=tlimb
+fss(fseg).material=spf(seg,tlimb).material
+fss(fseg).colmode=spf(seg,tlimb).colmode
+fss(fseg).texture$=spf(seg,tlimb).tex$
+fss(fseg).transparency=spf(seg,tlimb).transparency
+fss(fseg).partmode=spf(seg,tlimb).partmode
+fss(fseg).meshname$=spf(seg,tlimb).meshname$
+fss(fseg).x=x
+fss(fseg).lay=lay
+fss(fseg).y=y
+fss(fseg).offx=spf(seg,tlimb).offx
+fss(fseg).offy=spf(seg,tlimb).offy
+fss(fseg).offz=spf(seg,tlimb).offz
+if objectexist(obj)=1
+fss(fseg).osx=object size x(obj,1)
+fss(fseg).osy=object size y(obj,1)
+fss(fseg).osz=object size z(obj,1)
+endif
+fss(fseg).iswall=segmentiswall(lay,x,y,obj)
+fss(fseg).isoutwall=segmentisoutwall(lay,x,y,obj)
+fss(fseg).isfloor=segmentisfloor(lay,x,y,obj)
+fss(fseg).iscorner=segmentiscorner(lay,x,y,obj)
+fss(fseg).isoutcorner=segmentisoutcorner(lay,x,y,obj)
+fss(fseg).isroof=segmentisroof(lay,x,y,obj)
+fss(fseg).overlayexist=segmentoverlayexist(lay,x,y)
+`if (iswall=0 and isoutwall=0 and iscorner=0 and isoutcorner=0 and isroof=0) and vseg(lay,x,y).vis.overlay>0
+fss(fseg).overlay=spf(seg).vis.overlay
+`else
+`fss(fseg).overlay=0
+`endif
+
+array insert at bottom fss()
+endfunction fseg
+
+function setstaticlimbvisual(lay,x,y,seg,tlimb,obj)
+mapid=map(lay,x,y)
+if mapid<>0 then grideditgetmapvalues(mapid)
+tsegrot=maporient
+rem apply side-maprotation for walls
+tf=spf(seg,tlimb).vis.f : tr=spf(seg).vis.r
+vseg(lay,x,y).vis.overlay=spf(seg,tlimb).vis.overlay `"overlay"
+
+if tsegrot=0
+`walls
+twr=spf(seg).vis.wr : towr=spf(seg).vis.owr
+twf=spf(seg).vis.wf : towf=spf(seg).vis.owf
+twl=spf(seg).vis.wl : towl=spf(seg).vis.owl
+twb=spf(seg).vis.wb : towb=spf(seg).vis.owb
+`corners
+tcbl=spf(seg).vis.cbl : tocbl=spf(seg).vis.ocbl
+tctl=spf(seg).vis.ctl : toctl=spf(seg).vis.octl
+tctr=spf(seg).vis.ctr : toctr=spf(seg).vis.octr
+tcbr=spf(seg).vis.cbr : tocbr=spf(seg).vis.ocbr
+endif
+if tsegrot=1
+`walls
+twb=spf(seg).vis.wr : towb=spf(seg).vis.owr
+twr=spf(seg).vis.wf : towr=spf(seg).vis.owf
+twf=spf(seg).vis.wl : towf=spf(seg).vis.owl
+twl=spf(seg).vis.wb : towl=spf(seg).vis.owb
+`corners
+tctl=spf(seg).vis.cbl : toctl=spf(seg).vis.ocbl
+tctr=spf(seg).vis.ctl : toctr=spf(seg).vis.octl
+tcbr=spf(seg).vis.ctr : tocbr=spf(seg).vis.octr
+tcbl=spf(seg).vis.cbr : tocbl=spf(seg).vis.ocbr
+endif
+if tsegrot=2
+`walls
+twb=spf(seg).vis.wf : towb=spf(seg).vis.owf
+twr=spf(seg).vis.wl : towr=spf(seg).vis.owl
+twf=spf(seg).vis.wb : towf=spf(seg).vis.owb
+twl=spf(seg).vis.wr : towl=spf(seg).vis.owr
+`corners
+tctl=spf(seg).vis.cbr : toctl=spf(seg).vis.ocbr
+tctr=spf(seg).vis.cbl : toctr=spf(seg).vis.ocbl
+tcbr=spf(seg).vis.ctl : tocbr=spf(seg).vis.octl
+tcbl=spf(seg).vis.ctr : tocbl=spf(seg).vis.octr
+endif
+if tsegrot=3
+`wals
+twb=spf(seg).vis.wl : towb=spf(seg).vis.owl
+twr=spf(seg).vis.wb : towr=spf(seg).vis.owb
+twf=spf(seg).vis.wr : towf=spf(seg).vis.owr
+twl=spf(seg).vis.wf : towl=spf(seg).vis.owf
+`corners
+tctl=spf(seg).vis.ctr : toctl=spf(seg).vis.octr
+tctr=spf(seg).vis.cbr : toctr=spf(seg).vis.ocbr
+tcbr=spf(seg).vis.cbl : tocbr=spf(seg).vis.ocbl
+tcbl=spf(seg).vis.ctl : tocbl=spf(seg).vis.octl
+endif
+
+`if spf(seg,tlimb).vis.overlay=0
+if tlimb=tf then vseg(lay,x,y).vis.f=obj `"floor"
+if tlimb=tr then vseg(lay,x,y).vis.r=obj `"roof"
+`endif
+if tlimb=twb then vseg(lay,x,y).vis.wb=obj `"wall back"
+if tlimb=towb then vseg(lay,x,y).vis.owb=obj `"wall back outside"
+if tlimb=twr then vseg(lay,x,y).vis.wr=obj `"wall right"
+if tlimb=towr then vseg(lay,x,y).vis.owr=obj `"wall right outside"
+if tlimb=twf then vseg(lay,x,y).vis.wf=obj `"wall front"
+if tlimb=towf then vseg(lay,x,y).vis.owf=obj `"wall front outside"
+if tlimb=twl then vseg(lay,x,y).vis.wl=obj `"wall left"
+if tlimb=towl then vseg(lay,x,y).vis.owl=obj `"wall left outside"
+if tlimb=tctl then vseg(lay,x,y).vis.ctl=obj `"corner front left"
+if tlimb=toctl then vseg(lay,x,y).vis.octl=obj `"corner front left outside"
+if tlimb=tctr then vseg(lay,x,y).vis.ctr=obj `"corner front right"
+if tlimb=toctr then vseg(lay,x,y).vis.octr=obj `"corner front right outside"
+if tlimb=tcbr then vseg(lay,x,y).vis.cbr=obj `"corner back right"
+if tlimb=tocbr then vseg(lay,x,y).vis.ocbr=obj `"corner back right outside"
+if tlimb=tcbl then vseg(lay,x,y).vis.cbl=obj `"corner back left"
+if tlimb=tocbl then vseg(lay,x,y).vis.ocbl=obj `"corner back left outside"
+
+vseg(lay,x,y).vis.portalmode=spf(seg,tlimb).vis.portalmode `"portalmode"
+vseg(lay,x,y).mode=spf(seg).blueprint.mode `"blueprintmode"
+vseg(lay,x,y).angle=tsegrot `"angle"
+endfunction
+
+function segmentisfloor(lay,x,y,obj)
+if vseg(lay,x,y).vis.f=obj then exitfunction 1
+endfunction 0
+
+function segmentisroof(lay,x,y,obj)
+if vseg(lay,x,y).vis.r=obj then exitfunction 1
+endfunction 0
+
+function segmentiswall(lay,x,y,obj)
+if vseg(lay,x,y).vis.wb=obj then exitfunction 1
+if vseg(lay,x,y).vis.wr=obj then exitfunction 2
+if vseg(lay,x,y).vis.wf=obj then exitfunction 3
+if vseg(lay,x,y).vis.wl=obj then exitfunction 4
+endfunction 0
+
+function segmentwallexist(lay,x,y)
+if vseg(lay,x,y).vis.wb>0 then exitfunction 1
+if vseg(lay,x,y).vis.wr>0 then exitfunction 1
+if vseg(lay,x,y).vis.wf>0 then exitfunction 1
+if vseg(lay,x,y).vis.wl>0 then exitfunction 1
+endfunction 0
+
+function segmentiscorridor(lay,x,y)
+if vseg(lay,x,y).mode>1 then exitfunction 1
+endfunction 0
+
+function segmentsurrfloorexist(lay,x,y)
+xa=x-1 : xb=x+1 : ya=y-1 : yb=y+1
+if vseg(lay,xa,ya).vis.f>0 then exitfunction 1
+if vseg(lay,xa,yb).vis.f>0 then exitfunction 1
+if vseg(lay,xb,ya).vis.f>0 then exitfunction 1
+if vseg(lay,xb,yb).vis.f>0 then exitfunction 1
+endfunction 0
+
+function segmentisoutwall(lay,x,y,obj)
+if vseg(lay,x,y).vis.owb=obj then exitfunction 1
+if vseg(lay,x,y).vis.owr=obj then exitfunction 2
+if vseg(lay,x,y).vis.owf=obj then exitfunction 3
+if vseg(lay,x,y).vis.owl=obj then exitfunction 4
+endfunction 0
+
+function segmentoutwallexist(lay,x,y)
+if vseg(lay,x,y).vis.owb>0 then exitfunction 1
+if vseg(lay,x,y).vis.owr>0 then exitfunction 1
+if vseg(lay,x,y).vis.owf>0 then exitfunction 1
+if vseg(lay,x,y).vis.owl>0 then exitfunction 1
+endfunction 0
+
+function segmentoverlayexist(lay,x,y)
+if vseg(lay,x,y).vis.overlay>0 then ovex=vseg(lay,x,y).vis.overlay : exitfunction ovex
+endfunction 0
+
+function segmentiscorner(lay,x,y,obj)
+if vseg(lay,x,y).vis.ctl=obj then exitfunction 1
+if vseg(lay,x,y).vis.ctr=obj then exitfunction 2
+if vseg(lay,x,y).vis.cbr=obj then exitfunction 3
+if vseg(lay,x,y).vis.cbl=obj then exitfunction 4
+endfunction 0
+
+function segmentisoutcorner(lay,x,y,obj)
+if vseg(lay,x,y).vis.octl=obj then exitfunction 1
+if vseg(lay,x,y).vis.octr=obj then exitfunction 2
+if vseg(lay,x,y).vis.ocbr=obj then exitfunction 3
+if vseg(lay,x,y).vis.ocbl=obj then exitfunction 4
+endfunction 0
+
+function findsameoverlay(lay,x,y,fseg)
+for cseg=0 to array count(fss())
+if cseg<>fseg
+if fss(cseg).overlay>0
+if lay=fss(cseg).lay and x=fss(cseg).x and y=fss(cseg).y
+if fss(fseg).meshname$=fss(cseg).meshname$ and fss(fseg).texture$=fss(cseg).texture$
+exitfunction 1
+endif
+endif
+endif
+endif
+next cseg
+endfunction 0
+
+function getsegmentangle(lay,x,y)
+tangle=vseg(lay,x,y).angle
+endfunction tangle
+
+function displayvisualobjects(camx#,camy#,camz#)
+lay=camy#/100
+x=camx#/100
+y=(camz#/100)*-1
+`position object staticposition,(x*100)+50,(lay*100)+50,(y*-100)-50
+if (lay=>0 and lay<=lmax) and (x=>0 and x<=maxx) and (y=>0 and y<=maxy)
+text 600,0,"floor = "+str$(vseg(lay,x,y).vis.f)
+text 600,10,"roof = "+str$(vseg(lay,x,y).vis.r)
+text 600,20,"wall back = "+str$(vseg(lay,x,y).vis.wb)
+text 600,30,"wall back outside = "+str$(vseg(lay,x,y).vis.owb)
+text 600,40,"wall right = "+str$(vseg(lay,x,y).vis.wr)
+text 600,50,"wall right outside = "+str$(vseg(lay,x,y).vis.owr)
+text 600,60,"wall front = "+str$(vseg(lay,x,y).vis.wf)
+text 600,70,"wall front outside = "+str$(vseg(lay,x,y).vis.owf)
+text 600,80,"wall left = "+str$(vseg(lay,x,y).vis.wl)
+text 600,90,"wall left outside = "+str$(vseg(lay,x,y).vis.owl)
+text 600,100,"corner front left = "+str$(vseg(lay,x,y).vis.ctl)
+text 600,110,"corner front left outside = "+str$(vseg(lay,x,y).vis.octl)
+text 600,120,"corner front right = "+str$(vseg(lay,x,y).vis.ctr)
+text 600,130,"corner front right outside = "+str$(vseg(lay,x,y).vis.octr)
+text 600,150,"corner back left = "+str$(vseg(lay,x,y).vis.cbl)
+text 600,160,"corner back left outside = "+str$(vseg(lay,x,y).vis.ocbl)
+text 600,170,"corner back right = "+str$(vseg(lay,x,y).vis.cbr)
+text 600,180,"corner back right outside = "+str$(vseg(lay,x,y).vis.ocbr)
+text 600,190,"portalmode = "+str$(vseg(lay,x,y).vis.portalmode)
+text 600,200,"overlay = "+str$(vseg(lay,x,y).vis.overlay)
+text 600,210,"angle = "+str$(vseg(lay,x,y).angle)
+text 600,220,"blueprint mode = "+str$(vseg(lay,x,y).mode)
+text 600,230,"x["+str$(x)+"]lay["+str$(lay)+"]y["+str$(y)+"]"
+endif
+endfunction
+
+function getfirstdir(file$)
+firstdir$=""
+for c=1 to len(file$)
+if mid$(file$,c)="\" or mid$(file$,c)="/"
+firstdir$=left$(file$,c) : exit
+endif
+next c
+endfunction firstdir$
+
+function getseconddir(file$)
+firstdir$="" : count=2
+for c=1 to len(file$)
+if mid$(file$,c)="\" or mid$(file$,c)="/"
+dec count
+if count=0
+firstdir$=left$(file$,c) : exit
+endif
+endif
+next c
+endfunction firstdir$
+
+function getpath(file$)
+path$=""
+for c=len(file$) to 1 step -1
+if mid$(file$,c)="\" or mid$(file$,c)="/"
+path$=left$(file$,c) : exit
+endif
+next c
+endfunction path$
+
+function getfile(file$)
+for c=len(file$) to 1 step -1
+if mid$(file$,c)="\" or mid$(file$,c)="/"
+file$=right$(file$,len(file$)-c) : exit
+endif
+next c
+endfunction file$
+
+function loadinternalmesh(tfile$)
+rem Default return
+meshid=0
+rem Scan for existing mesh
+if meshbankmax>0
+for m=1 to meshbankmax
+if tfile$=meshbank$(m) then meshid=meshbankoffset+m : exit
+next m
+else
+m=meshbankmax+1
+endif
+rem Did not find, load it
+if m>meshbankmax
+inc meshbankmax
+dim meshbank$(meshbankmax)
+if file exist(tfile$)=1
+meshid=meshbankoffset+meshbankmax
+`load mesh tfile$,meshid
+if mesh exist(meshid)=0
+meshid=loadobject(tfile$,"",0,meshid)
+`if TOTAL OBJECT FRAMES(meshid)>0 then optimizelikestatic(tfile$,meshid) else 
+fixmesh(meshid)
+make mesh from object meshid,meshid
+delete object meshid
+endif
+meshbank$(meshbankmax)=tfile$
+endif
+endif
+endfunction meshid
+
+function isbinaryfileolderthantxtfileforseg(binaryfilefull$,textfilefull$)
+rem segment BIN files have version number signalled with a -1 in the first field
+result=0
+if file exist(binaryfilefull$)=1
+stdir$=get dir$()
+binaryfile$=getfile(binaryfilefull$)
+textfile$=getfile(textfilefull$)
+set dir getpath(binaryfilefull$)
+filedatevalueB=0
+filedatevalueT=0
+find first
+while get file type()<>-1
+if get file type()=0
+if lower$(get file name$())=lower$(binaryfile$)
+this$=get file date$()
+dayofyearB$=this$
+filedatevalueB=getdatevaluefromdatestring(dayofyearB$)
+else
+if lower$(get file name$())=lower$(textfile$)
+this$=get file date$()
+dayofyearT$=this$
+filedatevalueT=getdatevaluefromdatestring(dayofyearT$)
+endif
+endif
+if filedatevalueB<>0 and filedatevalueT<>0 then exit
+endif
+find next
+endwhile
+if filedatevalueB<>0 and filedatevalueT<>0
+if filedatevalueB<filedatevalueT
+result=1
+endif
+endif
+set dir stdir$
+if result=0
+rem V110 - 160508 - added extra code to hold new version number in segment BIN file
+open to read 3,binaryfilefull$
+read file 3,tval
+if tval=-1
+read file 3,tversion
+rem if BIN created with older version, trigger delete BIN file
+if tversion<gversion then result=1
+else
+rem if an old BIN, also delete it
+result=1
+endif
+close file 3
+endif
+endif
+endfunction result
+
+function isbinaryfileolderthantxtfileforent(binaryfilefull$,textfilefull$)
+rem entity BIN files have version number signalled with a "version" string lanel, then the integer version number
+result=0
+if file exist(binaryfilefull$)=1
+stdir$=get dir$()
+binaryfile$=getfile(binaryfilefull$)
+textfile$=getfile(textfilefull$)
+set dir getpath(binaryfilefull$)
+filedatevalueB=0
+filedatevalueT=0
+find first
+while get file type()<>-1
+if get file type()=0
+if lower$(get file name$())=lower$(binaryfile$)
+this$=get file date$()
+dayofyearB$=this$
+filedatevalueB=getdatevaluefromdatestring(dayofyearB$)
+else
+if lower$(get file name$())=lower$(textfile$)
+this$=get file date$()
+dayofyearT$=this$
+filedatevalueT=getdatevaluefromdatestring(dayofyearT$)
+endif
+endif
+if filedatevalueB<>0 and filedatevalueT<>0 then exit
+endif
+find next
+endwhile
+if filedatevalueB<>0 and filedatevalueT<>0
+if filedatevalueB<filedatevalueT
+result=1
+endif
+endif
+set dir stdir$
+if result=0
+open to read 3,binaryfilefull$
+read string 3,tval$
+if lower$(tval$)="version"
+read file 3,tversion
+rem if BIN created with older version, trigger delete BIN file
+if tversion<gversion then result=1
+else
+rem if an old BIN, also delete it
+result=1
+endif
+close file 3
+endif
+endif
+endfunction result
+
+function minstring(text$,minsize)
+sizegap=minsize-len(text$)
+text$=text$+space$(sizegap)
+endfunction text$
+
+function getdatevaluefromdatestring(dayofyear$)
+rem get year
+year$=right$(dayofyear$,4)
+dayofyear$=left$(dayofyear$,len(dayofyear$)-5)
+rem eat day
+for c=1 to len(dayofyear$)
+if mid$(dayofyear$,c)=" "
+dayofyear$=right$(dayofyear$,len(dayofyear$)-c)
+exit
+endif
+next c
+rem find month
+for c=1 to len(dayofyear$)
+if mid$(dayofyear$,c)=" "
+month$=lower$(left$(dayofyear$,c-1))
+dayofyear$=right$(dayofyear$,len(dayofyear$)-c)
+exit
+endif
+next c
+rem find date
+for c=1 to len(dayofyear$)
+if mid$(dayofyear$,c)=" "
+date$=lower$(left$(dayofyear$,c-1))
+dayofyear$=right$(dayofyear$,len(dayofyear$)-c)
+exit
+endif
+next c
+rem get time
+time$=""
+for c=1 to len(dayofyear$)
+if mid$(dayofyear$,c)<>":"
+time$=time$+mid$(dayofyear$,c)
+endif
+next c
+time$=left$(time$,len(time$)-2)
+if month$="jan" then month=1
+if month$="feb" then month=2
+if month$="mar" then month=3
+if month$="apr" then month=4
+if month$="may" then month=5
+if month$="jun" then month=6
+if month$="jul" then month=7
+if month$="aug" then month=8
+if month$="sep" then month=9
+if month$="oct" then month=10
+if month$="nov" then month=11
+if month$="dec" then month=12
+filedatevalue=((val(year$)-2004)*12*32*2500)+(month*32*2500)+(val(date$)*2500)+val(time$)
+endfunction filedatevalue
+
+function getgroundmodefrommap(mapatl,mapatx,mapaty)
+ mapground=3
+ if mapatx>=0
+  if mapaty>=0
+   if mapatx<=maxx
+    if mapaty<=maxy
+     mapid=map(mapatl,mapatx,mapaty)
+     if mapid<>0
+      mapground = ( mapid && %00000000000000001100000000000000 ) >> 14
+     else
+      mapground = 3
+     endif
+    endif
+   endif
+  endif
+ endif
+endfunction mapground
+
+function grideditgetmapvalues(mapid)
+rem mapid in
+mapselection    = ( mapid && %11111111111100000000000000000000 ) >> 20
+mapscaler       = ( mapid && %00000000000011110000000000000000 ) >> 16
+mapground       = ( mapid && %00000000000000001100000000000000 ) >> 14
+maprotate       = ( mapid && %00000000000000000011000000000000 ) >> 12
+maporient       = ( mapid && %00000000000000000000110000000000 ) >> 10
+mapsymbol       = ( mapid && %00000000000000000000001111110000 ) >> 4
+maptile         = ( mapid && %00000000000000000000000000001111 )
+endfunction
+
+function mapfileloadmap()
+gosub _segments_setup
+rem Free arrays
+undim map()
+undim mapolay()
+undim olaylist()
+rem Load header data (need main mapdata for visdata)
+filename$="mapbank\testmap\header.dat"
+if file exist(filename$)=1
+if file size(filename$)=16
+rem V-EA Header
+open to read 1,filename$
+read file 1,lmax
+read file 1,maxx
+read file 1,maxy
+read file 1,olaylistmax
+close file 1
+endif
+if file size(filename$)=32
+rem V-V1 Header
+open to read 1,filename$
+read file 1,lmax
+read file 1,maxx
+read file 1,maxy
+read file 1,olaylistmax
+read file 1,gmultiplayergame
+read file 1,temp
+read file 1,temp
+read file 1,temp
+close file 1
+endif
+if file size(filename$)>32
+rem X10 versioning
+open to read 1,filename$
+rem version number
+read file 1,x10headerversion
+rem standard
+read file 1,lmax
+read file 1,maxx
+read file 1,maxy
+read file 1,olaylistmax
+read file 1,gmultiplayergame
+read file 1,temp
+read file 1,temp
+read file 1,temp
+rem extra data
+if x10headerversion>=1
+rem x10 effects and volume values
+rem strings
+read string 1,res$
+read string 1,res$
+read string 1,res$
+read string 1,res$
+read string 1,res$
+rem x10effects
+for t=0 to 19
+read file 1,a : `x10effectmenu(t)=a
+next t
+rem volumes
+for t=0 to 4
+read file 1,a : `volumemeter(t)=a
+next t
+rem reserved
+read file 1,a : `waterlevel#=a : usewaterlevelfromprevioussession#=waterlevel#
+read file 1,a
+read file 1,a
+read file 1,a
+read file 1,a
+endif
+close file 1
+endif
+else
+olaylistmax=100
+endif
+rem Create arrays
+if lmax=0 then lmax=20
+if maxx=0 then maxx=40
+if maxy=0 then maxy=40
+dim map(lmax,maxx,maxy)
+dim mapolay(lmax,maxx,maxy)
+dim olaylist(olaylistmax,50) as DWORD
+if file exist("mapbank\testmap\map.fpmb")=1 then load array "mapbank\testmap\map.fpmb",map()
+if file exist("mapbank\testmap\map.fpmo")=1 then load array "mapbank\testmap\map.fpmo",mapolay()
+if file exist("mapbank\testmap\map.fpml")=1 then load array "mapbank\testmap\map.fpml",olaylist()
+endfunction
+
+function segmentvalidatearraysize(segidmaster)
+rem ensure enough space in arrays
+if segidmaster+32>segidmastermax
+segidmastermax=segidmaster+32
+dim selectionbank$(segidmastermax)
+dim selectionbanklocal$(segidmastermax)
+dim sph(segidmastermax) as segmentprofileheadertype
+dim spf(segidmastermax,64) as segmentprofiletype
+endif
+endfunction
+
+function segment_cleardata(segid)
+
+rem Default mesh settings
+segpartmax=64
+for q=0 to segpartmax
+spf(segid,q).partmode=0
+spf(segid,q).tex$=""
+spf(segid,q).texid=0
+spf(segid,q).texdid=0
+spf(segid,q).texiid=0
+spf(segid,q).texnid=0
+spf(segid,q).texsid=0
+` spf(segid,q).texd$=""
+` spf(segid,q).texn$=""
+` spf(segid,q).texs$=""
+spf(segid,q).effect$=""
+spf(segid,q).effectid=0
+spf(segid,q).csgmesh$=""
+spf(segid,q).csgmode=0
+spf(segid,q).csgimmune=0
+spf(segid,q).transparency=0
+next q
+
+rem Default hidden parts
+spf(segid).vis.overlay=0
+spf(segid).vis.f=-1
+spf(segid).vis.r=-1
+spf(segid).vis.wb=-1
+spf(segid).vis.wr=-1
+spf(segid).vis.wf=-1
+spf(segid).vis.wl=-1
+spf(segid).vis.owb=-1
+spf(segid).vis.owr=-1
+spf(segid).vis.owf=-1
+spf(segid).vis.owl=-1
+spf(segid).vis.ctl=-1
+spf(segid).vis.ctr=-1
+spf(segid).vis.cbr=-1
+spf(segid).vis.cbl=-1
+spf(segid).vis.octl=-1
+spf(segid).vis.octr=-1
+spf(segid).vis.ocbr=-1
+spf(segid).vis.ocbl=-1
+
+rem Default blueprint data
+spf(segid).blueprint.mode=0
+spf(segid).blueprint.symbol=0
+spf(segid).blueprint.floorsizey=-1
+spf(segid).blueprint.sidesizex=100
+spf(segid).blueprint.sidesizey=100
+spf(segid).blueprint.sidesizez=100
+
+rem Default properties data
+spf(segid).properties.groundmode=0
+spf(segid).properties.kindof=0
+
+endfunction
+
+
+function segment_customisesinglesegment(obj,mapatl,mapatx,mapaty)
+
+rem segment and segment rotayion used
+seg=mapselection : segmaprot=maprotate-maporient
+if segmaprot<0 then inc segmaprot,4
+
+rem scale any walls to scaler value (if any)
+if spf(seg).blueprint.sidesizex>100
+if spf(seg).vis.wb<>-1
+if (mapscaler && %0001)
+show limb obj,spf(seg).vis.wb
+if spf(seg).vis.owb<>-1 then show limb obj,spf(seg).vis.owb
+else
+hide limb obj,spf(seg).vis.wb
+if spf(seg).vis.owb<>-1 then hide limb obj,spf(seg).vis.owb
+endif
+endif
+if spf(seg).vis.wr<>-1
+if (mapscaler && %0010)
+show limb obj,spf(seg).vis.wr
+if spf(seg).vis.owr<>-1 then show limb obj,spf(seg).vis.owr
+else
+hide limb obj,spf(seg).vis.wr
+if spf(seg).vis.owr<>-1 then hide limb obj,spf(seg).vis.owr
+endif
+endif
+if spf(seg).vis.wf<>-1
+if (mapscaler && %0100)
+show limb obj,spf(seg).vis.wf
+if spf(seg).vis.owf<>-1 then show limb obj,spf(seg).vis.owf
+else
+hide limb obj,spf(seg).vis.wf
+if spf(seg).vis.owf<>-1 then hide limb obj,spf(seg).vis.owf
+endif
+endif
+if spf(seg).vis.wl<>-1
+if (mapscaler && %1000)
+show limb obj,spf(seg).vis.wl
+if spf(seg).vis.owl<>-1 then show limb obj,spf(seg).vis.owl
+else
+hide limb obj,spf(seg).vis.wl
+if spf(seg).vis.owl<>-1 then hide limb obj,spf(seg).vis.owl
+endif
+endif
+else
+if spf(seg).vis.wb<>-1
+show limb obj,spf(seg).vis.wb
+if spf(seg).vis.owb<>-1 then show limb obj,spf(seg).vis.owb
+endif
+if spf(seg).vis.wr<>-1
+show limb obj,spf(seg).vis.wr
+if spf(seg).vis.owr<>-1 then show limb obj,spf(seg).vis.owr
+endif
+if spf(seg).vis.wf<>-1
+show limb obj,spf(seg).vis.wf
+if spf(seg).vis.owf<>-1 then show limb obj,spf(seg).vis.owf
+endif
+if spf(seg).vis.wl<>-1
+show limb obj,spf(seg).vis.wl
+if spf(seg).vis.owl<>-1 then show limb obj,spf(seg).vis.owl
+endif
+endif
+
+rem default limbs states
+if spf(seg).vis.f<>-1 then show limb obj,spf(seg).vis.f
+if spf(seg).vis.r<>-1 then show limb obj,spf(seg).vis.r
+if spf(seg).vis.ctl<>-1 then hide limb obj,spf(seg).vis.ctl
+if spf(seg).vis.ctr<>-1 then hide limb obj,spf(seg).vis.ctr
+if spf(seg).vis.cbr<>-1 then hide limb obj,spf(seg).vis.cbr
+if spf(seg).vis.cbl<>-1 then hide limb obj,spf(seg).vis.cbl
+if spf(seg).vis.octl<>-1 then hide limb obj,spf(seg).vis.octl
+if spf(seg).vis.octr<>-1 then hide limb obj,spf(seg).vis.octr
+if spf(seg).vis.ocbr<>-1 then hide limb obj,spf(seg).vis.ocbr
+if spf(seg).vis.ocbl<>-1 then hide limb obj,spf(seg).vis.ocbl
+
+rem apply side-maprotation for walls
+twb=spf(seg).vis.wb : twr=spf(seg).vis.wr
+twf=spf(seg).vis.wf : twl=spf(seg).vis.wl
+towb=spf(seg).vis.owb : towr=spf(seg).vis.owr
+towf=spf(seg).vis.owf : towl=spf(seg).vis.owl
+if segmaprot=1
+twb=spf(seg).vis.wl :  twr=spf(seg).vis.wb
+twf=spf(seg).vis.wr :  twl=spf(seg).vis.wf
+towb=spf(seg).vis.owl :  towr=spf(seg).vis.owb
+towf=spf(seg).vis.owr :  towl=spf(seg).vis.owf
+endif
+if segmaprot=2
+twb=spf(seg).vis.wf :  twr=spf(seg).vis.wl
+twf=spf(seg).vis.wb :  twl=spf(seg).vis.wr
+towb=spf(seg).vis.owf :  towr=spf(seg).vis.owl
+towf=spf(seg).vis.owb :  towl=spf(seg).vis.owr
+endif
+if segmaprot=3
+twb=spf(seg).vis.wr :  twr=spf(seg).vis.wf
+twf=spf(seg).vis.wl :  twl=spf(seg).vis.wb
+towb=spf(seg).vis.owr :  towr=spf(seg).vis.owf
+towf=spf(seg).vis.owl :  towl=spf(seg).vis.owb
+endif
+
+rem eliminate external walls if blocked
+if maprotate=0
+if towf<>-1 and getgroundmodefrommap(mapatl,mapatx,mapaty-1)<=1 then hide limb obj,towf
+if towb<>-1 and getgroundmodefrommap(mapatl,mapatx,mapaty+1)<=1 then hide limb obj,towb
+if towl<>-1 and getgroundmodefrommap(mapatl,mapatx-1,mapaty)<=1 then hide limb obj,towl
+if towr<>-1 and getgroundmodefrommap(mapatl,mapatx+1,mapaty)<=1 then hide limb obj,towr
+endif
+if maprotate=1
+if towf<>-1 and getgroundmodefrommap(mapatl,mapatx+1,mapaty)<=1 then hide limb obj,towf
+if towb<>-1 and getgroundmodefrommap(mapatl,mapatx-1,mapaty)<=1 then hide limb obj,towb
+if towl<>-1 and getgroundmodefrommap(mapatl,mapatx,mapaty-1)<=1 then hide limb obj,towl
+if towr<>-1 and getgroundmodefrommap(mapatl,mapatx,mapaty+1)<=1 then hide limb obj,towr
+endif
+if maprotate=2
+if towf<>-1 and getgroundmodefrommap(mapatl,mapatx,mapaty+1)<=1 then hide limb obj,towf
+if towb<>-1 and getgroundmodefrommap(mapatl,mapatx,mapaty-1)<=1 then hide limb obj,towb
+if towl<>-1 and getgroundmodefrommap(mapatl,mapatx+1,mapaty)<=1 then hide limb obj,towl
+if towr<>-1 and getgroundmodefrommap(mapatl,mapatx-1,mapaty)<=1 then hide limb obj,towr
+endif
+if maprotate=3
+if towf<>-1 and getgroundmodefrommap(mapatl,mapatx-1,mapaty)<=1 then hide limb obj,towf
+if towb<>-1 and getgroundmodefrommap(mapatl,mapatx+1,mapaty)<=1 then hide limb obj,towb
+if towl<>-1 and getgroundmodefrommap(mapatl,mapatx,mapaty+1)<=1 then hide limb obj,towl
+if towr<>-1 and getgroundmodefrommap(mapatl,mapatx,mapaty-1)<=1 then hide limb obj,towr
+endif
+
+rem inner wall to hide
+if twr<>-1
+if maptile>=2 then hide limb obj,twr
+endif
+if twb<>-1
+if maptile=3 or maptile>=5 then hide limb obj,twb
+endif
+if twl<>-1
+if maptile>=4 and maptile<=14 then hide limb obj,twl
+endif
+if twf<>-1
+if maptile>=6 and maptile<=11 then hide limb obj,twf
+endif
+
+rem outer wall to hide
+if towr<>-1
+if maptile>=2 then hide limb obj,towr
+endif
+if towb<>-1
+if maptile=3 or maptile>=5 then hide limb obj,towb
+endif
+if towl<>-1
+if maptile>=4 and maptile<=14 then hide limb obj,towl
+endif
+if towf<>-1
+if maptile>=6 and maptile<=11 then hide limb obj,towf
+endif
+
+rem symbol no floor hides floor/roof
+if mapsymbol=1
+if spf(seg).vis.f<>-1 then hide limb obj,spf(seg).vis.f
+if spf(seg).vis.r<>-1 then hide limb obj,spf(seg).vis.r
+endif
+
+rem calculate actual corner before whole seg is rotated
+ttoctl=spf(seg).vis.octl
+ttoctr=spf(seg).vis.octr
+ttocbr=spf(seg).vis.ocbr
+ttocbl=spf(seg).vis.ocbl
+toctl=-1 : toctr=-1 : tocbr=-1 : tocbl=-1
+if segmaprot=0
+tctl=spf(seg).vis.ctl
+tctr=spf(seg).vis.ctr
+tcbr=spf(seg).vis.cbr
+tcbl=spf(seg).vis.cbl
+toctl=ttoctl
+toctr=ttoctr
+tocbr=ttocbr
+tocbl=ttocbl
+endif
+if segmaprot=1
+tctl=spf(seg).vis.ctr
+tctr=spf(seg).vis.cbr
+tcbr=spf(seg).vis.cbl
+tcbl=spf(seg).vis.ctl
+toctl=ttoctr
+toctr=ttocbr
+tocbr=ttocbl
+tocbl=ttoctl
+endif
+if segmaprot=2
+tctl=spf(seg).vis.cbr
+tctr=spf(seg).vis.cbl
+tcbr=spf(seg).vis.ctl
+tcbl=spf(seg).vis.ctr
+toctl=ttocbr
+toctr=ttocbl
+tocbr=ttoctl
+tocbl=ttoctr
+endif
+if segmaprot=3
+tctl=spf(seg).vis.cbl
+tctr=spf(seg).vis.ctl
+tcbr=spf(seg).vis.ctr
+tcbl=spf(seg).vis.cbr
+toctl=ttocbl
+toctr=ttoctl
+tocbr=ttoctr
+tocbl=ttocbr
+endif
+
+rem remove external corners if not needed
+ttoctl=-1 : ttoctr=-1 : ttocbr=-1 : ttocbl=-1
+if maprotate=0
+if getgroundmodefrommap(mapatl,mapatx-1,mapaty-1)>=2 then ttoctl=toctl
+if getgroundmodefrommap(mapatl,mapatx+1,mapaty-1)>=2 then ttoctr=toctr
+if getgroundmodefrommap(mapatl,mapatx+1,mapaty+1)>=2 then ttocbr=tocbr
+if getgroundmodefrommap(mapatl,mapatx-1,mapaty+1)>=2 then ttocbl=tocbl
+endif
+if maprotate=1
+if getgroundmodefrommap(mapatl,mapatx+1,mapaty-1)>=2 then ttoctl=toctl
+if getgroundmodefrommap(mapatl,mapatx+1,mapaty+1)>=2 then ttoctr=toctr
+if getgroundmodefrommap(mapatl,mapatx-1,mapaty+1)>=2 then ttocbr=tocbr
+if getgroundmodefrommap(mapatl,mapatx-1,mapaty-1)>=2 then ttocbl=tocbl
+endif
+if maprotate=2
+if getgroundmodefrommap(mapatl,mapatx+1,mapaty+1)>=2 then ttoctl=toctl
+if getgroundmodefrommap(mapatl,mapatx-1,mapaty+1)>=2 then ttoctr=toctr
+if getgroundmodefrommap(mapatl,mapatx-1,mapaty-1)>=2 then ttocbr=tocbr
+if getgroundmodefrommap(mapatl,mapatx+1,mapaty-1)>=2 then ttocbl=tocbl
+endif
+if maprotate=3
+if getgroundmodefrommap(mapatl,mapatx-1,mapaty+1)>=2 then ttoctl=toctl
+if getgroundmodefrommap(mapatl,mapatx-1,mapaty-1)>=2 then ttoctr=toctr
+if getgroundmodefrommap(mapatl,mapatx+1,mapaty-1)>=2 then ttocbr=tocbr
+if getgroundmodefrommap(mapatl,mapatx+1,mapaty+1)>=2 then ttocbl=tocbl
+endif
+
+rem inner corner limbs to show
+if tctl<>-1
+if maptile>=7 and maptile<=11 then show limb obj,tctl
+endif
+if tctr<>-1
+if maptile=8 or maptile=10 or maptile=11 then show limb obj,tctr
+endif
+if tcbr<>-1
+if maptile=9 or maptile=10 or maptile=11 or maptile>=13 then show limb obj,tcbr
+endif
+if tcbl<>-1
+if maptile=11 or maptile=12 or maptile=14 then show limb obj,tcbl
+endif
+
+rem outer corner limbs to show
+if ttoctl<>-1
+if maptile=1 then show limb obj,ttoctl
+if maptile=2 then show limb obj,ttoctl
+if maptile=3 then show limb obj,ttoctl
+if maptile=15 then show limb obj,ttoctl
+endif
+if ttoctr<>-1
+if maptile=1 then show limb obj,ttoctr
+endif
+if ttocbr<>-1
+if maptile=1 then show limb obj,ttocbr
+endif
+if ttocbl<>-1
+if maptile=1 then show limb obj,ttocbl
+if maptile=2 then show limb obj,ttocbl
+endif
+
+rem rotate object ro rotation
+yrotate object obj,maporient*90
+
+endfunction
+
+
+function segment_loaddata(segid)
+
+seg$=selectionbank$(segid)
+
+rem Default Segment Data
+segment_cleardata(segid)
+
+rem Fill this last if not in filedata
+sph(segid).lastmeshmax=-1
+
+rem Ensure segment profile still exists
+if file exist(segdir$+seg$)=1
+
+rem Check if binary version of segment profile exists
+tprofile$=left$(segdir$+seg$,len(segdir$+seg$)-4)+".bin"
+if isbinaryfileolderthantxtfileforseg(tprofile$,segdir$+seg$)=1 then delete file tprofile$
+if file exist(tprofile$)=0
+
+rem Load Segment Data from file
+dim data$(999)
+load array segdir$+seg$,data$()
+for l=0 to 999
+line$=data$(l)
+if len(line$)>0
+if lower$(left$(line$,4))=";end" then exit
+if left$(line$,1)<>";"
+`
+rem take fieldname and value
+for c=0 to len(line$)
+if mid$(line$,c)="=" then mid=c : exit
+next c
+field$=lower$(removeedgespaces(left$(line$,mid-1)))
+value$=removeedgespaces(right$(line$,len(line$)-mid))
+`
+rem take value 1 and 2 from value
+for c=0 to len(value$)
+if mid$(value$,c)="," then mid=c : exit
+next c
+value1=val(removeedgespaces(left$(value$,mid-1)))
+value2$=removeedgespaces(right$(value$,len(value$)-mid))
+if len(value2$)>0 then value2=val(value2$) else value2=-1
+`
+rem HEADER
+if field$="partmax" then sph(segid).partmax=value1
+if field$="lastmeshmax" then sph(segid).lastmeshmax=value1
+`
+rem SEGMENT PARTS
+segpartmax=sph(segid).partmax
+for p=0 to segpartmax
+tryfield$="partmode"+str$(p)
+if field$=tryfield$ then spf(segid,p).partmode=value1
+tryfield$="meshname"+str$(p)
+if field$=tryfield$ then spf(segid,p).meshname$=value$
+tryfield$="offx"+str$(p)
+if field$=tryfield$ then spf(segid,p).offx=value1
+tryfield$="offy"+str$(p)
+if field$=tryfield$ then spf(segid,p).offy=value1
+tryfield$="offz"+str$(p)
+if field$=tryfield$ then spf(segid,p).offz=value1
+tryfield$="rotx"+str$(p)
+if field$=tryfield$ then spf(segid,p).rotx=value1
+tryfield$="roty"+str$(p)
+if field$=tryfield$ then spf(segid,p).roty=value1
+tryfield$="rotz"+str$(p)
+if field$=tryfield$ then spf(segid,p).rotz=value1
+REM k-mod
+tryfield$="scalex"+str$(p)
+if field$=tryfield$ then spf(segid,p).scalex=value1
+tryfield$="scaley"+str$(p)
+if field$=tryfield$ then spf(segid,p).scaley=value1
+tryfield$="scalez"+str$(p)
+if field$=tryfield$ then spf(segid,p).scalez=value1
+`  tryfield$="csgmod"+str$(p)
+`  if field$=tryfield$ then spf(segid,p).kmcsg=value1
+rem
+tryfield$="texture"+str$(p)
+if field$=tryfield$ then spf(segid,p).tex$=value$
+tryfield$="transparency"+str$(p)
+if field$=tryfield$ then spf(segid,p).transparency=value1
+tryfield$="effect"+str$(p)
+if field$=tryfield$ then spf(segid,p).effect$=value$
+tryfield$="colmode"+str$(p)
+if field$=tryfield$ then spf(segid,p).colmode=value1
+tryfield$="csgmesh"+str$(p)
+if field$=tryfield$ then spf(segid,p).csgmesh$=value$
+tryfield$="csgmode"+str$(p)
+if field$=tryfield$ then spf(segid,p).csgmode=value1
+tryfield$="csgimmune"+str$(p)
+if field$=tryfield$ then spf(segid,p).csgimmune=value1
+tryfield$="lightmode"+str$(p)
+if field$=tryfield$ then spf(segid,p).lightmode=value1
+tryfield$="multimeshmode"+str$(p)
+if field$=tryfield$ then spf(segid,p).multimeshmode=value1
+tryfield$="materialindex"+str$(p)
+if field$=tryfield$ then spf(segid,p).material=value1
+next p
+`
+rem SEGMENT VISIBILITY
+if field$="visoverlay" then spf(segid).vis.overlay=value1
+if field$="visfloor" then spf(segid).vis.f=value1
+if field$="visroof" then spf(segid).vis.r=value1
+if field$="viswallb" then spf(segid).vis.wb=value1 : spf(segid).vis.owb=value2
+if field$="viswallr" then spf(segid).vis.wr=value1 : spf(segid).vis.owr=value2
+if field$="viswallf" then spf(segid).vis.wf=value1 : spf(segid).vis.owf=value2
+if field$="viswalll" then spf(segid).vis.wl=value1 : spf(segid).vis.owl=value2
+if field$="viscornertl" then spf(segid).vis.ctl=value1 : spf(segid).vis.octl=value2
+if field$="viscornertr" then spf(segid).vis.ctr=value1 : spf(segid).vis.octr=value2
+if field$="viscornerbr" then spf(segid).vis.cbr=value1 : spf(segid).vis.ocbr=value2
+if field$="viscornerbl" then spf(segid).vis.cbl=value1 : spf(segid).vis.ocbl=value2
+if field$="visportalmode" then spf(segid).vis.portalmode=value1
+`
+rem SEGMENT BLUEPRINT
+if field$="mode" then spf(segid).blueprint.mode=value1
+if field$="symbol" then spf(segid).blueprint.symbol=value1
+if field$="floorsizey" then spf(segid).blueprint.floorsizey=value1
+if field$="sidesizex" then spf(segid).blueprint.sidesizex=value1
+if field$="sidesizey" then spf(segid).blueprint.sidesizey=value1
+if field$="sidesizez" then spf(segid).blueprint.sidesizez=value1
+`
+rem SEGMENT PROPERTIES
+if field$="groundmode" then spf(segid).properties.groundmode=value1
+if field$="kindof" then spf(segid).properties.kindof=value1
+`
+endif
+endif
+next l
+undim data$()
+`
+rem Save segment profile as binary (and strings tagged to end)
+dim temp(64) as segmentprofiletype
+open to write 1,tprofile$
+rem V110 - 160508 - added extra code to hold new version number in segment BIN file
+write file 1,-1 : write file 1,gversion
+write file 1,sph(segid).partmax
+write file 1,sph(segid).lastmeshmax
+segpartmax=sph(segid).partmax
+for p=0 to segpartmax : temp(p)=spf(segid,p) : next p
+if memblock exist(1)=1 then delete memblock 1
+for p=0 to segpartmax
+temp(p).meshname$=free string()
+temp(p).tex$=free string()
+temp(p).effect$=free string()
+temp(p).csgmesh$=free string()
+next p
+make memblock from array 1,temp(0)
+write memblock 1,1
+for p=0 to segpartmax
+write string 1,spf(segid,p).meshname$
+write string 1,spf(segid,p).tex$
+write string 1,spf(segid,p).effect$
+write string 1,spf(segid,p).csgmesh$
+next p
+close file 1
+delete memblock 1
+undim temp(0)
+`
+else
+`
+rem load binary version of segment profile file
+dim temp(64) as segmentprofiletype
+open to read 1,tprofile$
+read file 1,tval
+read file 1,tversion
+read file 1,tval : sph(segid).partmax=tval
+read file 1,tval : sph(segid).lastmeshmax=tval
+segpartmax=sph(segid).partmax
+read memblock 1,1
+make array from memblock temp(0),1
+for p=0 to segpartmax : spf(segid,p)=temp(p) : next p
+for p=0 to segpartmax
+read string 1,tstr$ : spf(segid,p).meshname$=tstr$
+read string 1,tstr$ : spf(segid,p).tex$=tstr$
+read string 1,tstr$ : spf(segid,p).effect$=tstr$
+read string 1,tstr$ : spf(segid,p).csgmesh$=tstr$
+next p
+close file 1
+delete memblock 1
+undim temp(0)
+`
+endif
+
+rem If lastmesh not there, use partmax
+if sph(segid).lastmeshmax=-1
+sph(segid).lastmeshmax=sph(segid).partmax
+endif
+endif
+endfunction
+
+function segment_loadbank()
+rem If seg file exists
+if file exist("mapbank\testmap\map.seg")=1
+
+rem Destroy old segments
+if segidmastermax>0
+rem changed from segidmaster
+for segid=1 to segidmastermax
+segobj=selectionbankoffset+segid
+if object exist(segobj)=1 then delete object segobj
+selectionbank$(segid)=""
+next segid
+endif
+segidmaster=0
+
+rem Load segment bank
+open to read 1,"mapbank\testmap\map.seg"
+read file 1,segidmaster
+if segidmaster>0
+segmentvalidatearraysize(segidmaster)
+for segid=1 to segidmaster
+read string 1,selectionbank$(segid)
+next segid
+endif
+close file 1
+
+rem Load segments specified by bank
+if segidmaster>0
+for segid=1 to segidmaster
+seg$=selectionbank$(segid)
+if seg$<>""
+segcategory$=getfirstdir(seg$)
+segpath$=getseconddir(seg$)
+segment_load(segid)
+if sph(segid).partmax=-1
+selectionbank$(segid)=""
+endif
+else
+sph(segid).partmax=-1
+endif
+next segid
+endif
+
+rem No file
+endif
+
+endfunction
+
+function segment_load(segid)
+
+rem Segment Object Index
+segobj=selectionbankoffset+segid
+seg$=selectionbank$(segid)
+
+rem Load segment profile data
+sph(segid).partmax=-1
+segment_loaddata(segid)
+segpartmax=sph(segid).partmax
+
+rem Only if profile exists
+if segpartmax<>-1
+`
+rem Check if DBO version of segment obj exists
+tsegobjpreloaded=0
+if segobjusedforfinalgame=0
+tsegobjfile$=left$(segdir$+seg$,len(segdir$+seg$)-4)+".dbo"
+if file exist(tsegobjfile$)=1
+segobj=loadobject(tsegobjfile$,"",0,segobj)
+`if TOTAL OBJECT FRAMES(segobj)>0 then optimizelikestatic(tsegobjfile$,segobj) else 
+fixmesh(segobj)
+set object filter segobj,2
+tsegobjpreloaded=1
+endif
+endif
+`
+rem segment mesh max
+segmeshpartmax=sph(segid).lastmeshmax
+`
+rem Load meshes for segment
+if tsegobjpreloaded=0
+for p=0 to segmeshpartmax
+if spf(segid,p).partmode=0
+tmeshname$=spf(segid,p).meshname$
+if spf(segid,p).csgmesh$<>"" then tmeshname$=spf(segid,p).csgmesh$
+if tmeshname$<>""
+tfile$=tmeshname$
+spf(segid,p).meshid=loadinternalmesh(tfile$)
+endif
+endif
+next p
+endif
+`
+rem Load multi-meshes for segment
+originalsegmeshpartmax=-1
+if segobjusedforfinalgame=1
+dim tempspf(64) as segmentprofiletype
+tempp=0
+rem place where new limbs will be located (extralimbp) - we will move things like entitys/csgs to end
+extralimbp=segmeshpartmax+1
+for p=0 to segmeshpartmax
+if spf(segid,p).partmode=0
+ttmeshname$=spf(segid,p).meshname$
+if spf(segid,p).multimeshmode=1
+if spf(segid,p).csgmesh$="" and ttmeshname$<>""
+if lower$(right$(ttmeshname$,3))="a.x"
+for ttwo=0 to 1
+tmeshname$=ttmeshname$
+tmeshname$=left$(tmeshname$,len(tmeshname$)-3)
+if ttwo=0 then tmeshname$=tmeshname$+"b.x"
+if ttwo=1 then tmeshname$=tmeshname$+"c.x"
+tfile$=tmeshname$
+tempspf(tempp)=spf(segid,p)
+if ttwo=0 then tempspf(tempp).meshid=loadinternalmesh(tfile$)
+if ttwo=1 then tempspf(tempp).meshid=loadinternalmesh(tfile$)
+inc tempp
+next ttwo
+else
+rem not a.x, but can still habe multi-texture so use base mesh instead
+tempspf(tempp)=spf(segid,p)
+tempspf(tempp).meshid=loadinternalmesh(ttmeshname$)
+inc tempp
+tempspf(tempp)=spf(segid,p)
+tempspf(tempp).meshid=loadinternalmesh(ttmeshname$)
+inc tempp
+endif
+spf(segid,p).multimeshstart=extralimbp
+inc extralimbp,2
+endif
+endif
+endif
+next p
+rem multimesh entries made
+if tempp>0
+rem first copy non-mesh parts (entity/csg) to new end
+for p=segpartmax to segmeshpartmax+1 step -1
+spf(segid,p+tempp)=spf(segid,p)
+next p
+rem now copy accumilated multi-meshes to updated segment profile
+temppmax=tempp : tempp=0
+for p=segmeshpartmax+1 to segmeshpartmax+temppmax
+spf(segid,p)=tempspf(tempp) : inc tempp
+next p
+rem update max values
+sph(segid).partmax=segpartmax+temppmax
+segpartmax=sph(segid).partmax
+originalsegmeshpartmax=segmeshpartmax
+sph(segid).lastmeshmax=segmeshpartmax+temppmax
+segmeshpartmax=sph(segid).lastmeshmax
+endif
+endif
+`
+
+rem Build segment in object from segment profile
+if tsegobjpreloaded=0
+segmeshpartmax=sph(segid).lastmeshmax
+tpstart=0 : tpend=segmeshpartmax
+for p=tpstart to tpend
+ttthemeshtouse=spf(segid,p).meshid
+if ttthemeshtouse=0
+if object exist(temporarymeshobject)=0 then make object sphere temporarymeshobject,0 : make mesh from object temporarymeshobject,temporarymeshobject
+ttthemeshtouse=temporarymeshobject
+endif
+if object exist(segobj)=0
+make object segobj,ttthemeshtouse,0
+else
+add limb segobj,p,ttthemeshtouse
+endif
+offset limb segobj,p,spf(segid,p).offx,spf(segid,p).offy,spf(segid,p).offz,1
+rotate limb segobj,p,0,spf(segid,p).roty,0,1
+if spf(segid,p).scalex<>0 or spf(segid,p).scaley<>0 or spf(segid,p).scalez<>0
+scale limb segobj,p,spf(segid,p).scalex,spf(segid,p).scaley,spf(segid,p).scalez,1
+endif
+next p
+endif
+`
+rem load csg meshes for scene building
+if tsegobjpreloaded=0
+for tp=0 to segpartmax
+if spf(segid,tp).partmode=1
+tmeshname$=spf(segid,tp).meshname$
+if tmeshname$<>""
+tfile$=tmeshname$
+spf(segid,tp).meshid=loadinternalmesh(tfile$)
+ttthemeshtouse=spf(segid,tp).meshid
+if ttthemeshtouse=0
+if object exist(temporarymeshobject)=0 then make object sphere temporarymeshobject,0 : make mesh from object temporarymeshobject,temporarymeshobject
+ttthemeshtouse=temporarymeshobject
+endif
+add limb segobj,p,ttthemeshtouse
+offset limb segobj,p,spf(segid,tp).offx,spf(segid,tp).offy,spf(segid,tp).offz,1
+rotate limb segobj,p,0,spf(segid,tp).roty,0,1
+if spf(segid,tp).scalex<>0 or spf(segid,tp).scaley<>0 or spf(segid,tp).scalez<>0
+scale limb segobj,p,spf(segid,tp).scalex,spf(segid,tp).scaley,spf(segid,tp).scalez,1
+endif
+color limb segobj,p,rgb(0,255,0)
+spf(segid,tp).actuallimb=p
+inc p
+endif
+endif
+next tp
+else
+rem still need actuallimb data for CSG meshes
+p=segmeshpartmax+1
+for tp=0 to segpartmax
+if spf(segid,tp).partmode=1
+tmeshname$=spf(segid,tp).meshname$
+if tmeshname$<>"" then spf(segid,tp).actuallimb=p : inc p
+endif
+next tp
+endif
+`
+rem Save DBO of segment if not exist
+if segobjusedforfinalgame=0
+if file exist(tsegobjfile$)=0
+save object tsegobjfile$,segobj
+endif
+endif
+`
+rem Texture segment in object from segment profile
+segmeshpartmax=sph(segid).lastmeshmax
+for p=0 to segmeshpartmax
+if spf(segid,p).effectid=0
+texture limb segobj,p,spf(segid,p).texid
+else
+if spf(segid,p).texdid=0
+texture limb segobj,p,spf(segid,p).texid
+else
+texture limb segobj,p,0,spf(segid,p).texdid
+if spf(segid,p).texiid<>0 then texture limb segobj,p,1,spf(segid,p).texiid
+if spf(segid,p).texnid<>0 then texture limb segobj,p,2,spf(segid,p).texnid
+if spf(segid,p).texsid<>0 then texture limb segobj,p,3,spf(segid,p).texsid
+endif
+set limb effect segobj,p,spf(segid,p).effectid
+endif
+next p
+`
+rem Set any segment transparenct (always uses transparency TGA=alpha)
+set object transparency segobj,1
+`
+rem Hide object away
+position object segobj,100000,100000,100000
+`
+rem Ensure multimeshes are hidden from segment handling (only used in node tree creation)
+if segobjusedforfinalgame=1 and originalsegmeshpartmax<>-1
+sph(segid).lastmeshmax=originalsegmeshpartmax
+segmeshpartmax=originalsegmeshpartmax
+endif
+`
+rem no profile exists endif
+endif
+
+endfunction
+
+function segmentsclear()
+if segmentssetup=1
+for m=0 to meshbankmax
+tmesh=meshbankoffset+meshbankmax
+if tmesh>0
+if mesh exist(tmesh)=1 then delete mesh tmesh
+endif
+next m
+if lastsegobj>=universebuildobjstartoffset then delete objects universebuildobjstartoffset,lastsegobj
+segdir$=""
+mapselection=0
+mapscaler=0
+mapground=0
+maprotate=0
+maporient=0
+mapsymbol=0
+maptile=0
+selectionbankoffset=0
+temporarymeshobject=0
+universebuildobjstartoffset=0
+universebuildobjendoffset=0
+segidmastermax=0
+`lmax=0
+`maxx=0
+`maxy=0
+meshbankmax=0
+meshbankoffset=0
+lastsegobj=0
+`undim fss()
+undim map()
+undim mapcsg()
+undim mapobj()
+undim mapolay()
+undim meshbank$()
+undim olaylist()
+undim spf()
+undim sph()
+undim selectionbank$()
+undim selectionbanklocal$()
+undim tempspf()
+segmentssetup=0
+endif
+endfunction

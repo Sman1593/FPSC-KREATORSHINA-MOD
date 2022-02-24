@@ -1,0 +1,82 @@
+Rem Project: Dark Basic Pro Project
+Rem Created: Thursday, June 24, 2021
+
+Rem ***** Main Source File *****
+file$=Cl$()
+if file$="" then end
+global bindir$ : bindir$=get dir$()
+lastchar=find last char$(bindir$,"\")
+global filesdir$ : filesdir$=left$(bindir$,lastchar)+"Files\"
+global cddir$ as string : cddir$=filesdir$ : cd cddir$
+sync sleep 100
+`do : cls : print filesdir$ : print file$ : sync : loop
+
+if file exist(file$)=0 then end
+
+file$=fast lower$(file$)
+if fileformat(file$,".dbo")=1 then dbofile$=file$
+if fileformat(file$,".x")=1 then dbofile$=left$(file$,fast len(file$)-2)+".dbo"
+if fileformat(file$,".3ds")=1 then dbofile$=left$(file$,fast len(file$)-4)+".dbo"
+if file exist(file$)=1
+if file size(file$)>76
+if file exist(dbofile$)=0
+obj=find free object()
+load object file$,obj,0
+save object dbofile$,obj
+else
+obj=find free object()
+load object dbofile$,obj,0
+endif
+endif
+endif
+
+make mesh from object obj,obj
+sfdbo$=newformat(file$,".static.dbo")
+sfdbu$=newformat(sfdbo$,".dbu")
+
+if file exist(sfdbo$)=0
+`objsz#=object size(obj)
+
+`scale#=500/objsz#
+`if scale#<>0 then rescale#=5/scale# else rescale#=0
+
+`if objsz#>100
+`scale#=0.1
+`rescale#=10
+`endif
+
+`softscale(obj,0.1)
+px#=object size x(obj)*0.5
+py#=object size y(obj)*0.5
+pz#=object size z(obj)*-0.5
+position object obj,px#,py#,pz#
+SET STATIC UNIVERSE 1000,1000,1000
+`scale object obj,scale#,scale#,scale#
+make static object obj,0,0,0,0
+
+
+BUILD STATIC PORTALS
+SAVE STATIC OBJECTS sfdbo$
+deletefile(sfdbu$)
+
+nobj=find free object()
+if file size(sfdbo$)>76
+load object sfdbo$,nobj
+maxl=get limb count(nobj)
+for l=0 to maxl
+offset limb nobj,l,px#*-1,py#*-1,pz#*-1
+next l
+`scale object nobj,rescale#,rescale#,rescale#
+deletefile(sfdbo$)
+save object sfdbo$,nobj
+else
+make object nobj,obj,0
+deletefile(sfdbo$)
+save object sfdbo$,nobj
+endif
+
+`deletefile(sfdbo$)
+`save object sfdbo$,nobj
+
+endif
+end

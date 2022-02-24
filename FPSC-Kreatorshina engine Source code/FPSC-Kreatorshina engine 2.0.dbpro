@@ -1,0 +1,99 @@
+; **** Dark BASIC Professional Project File ****
+; **** Written by Synergy Editor ****
+version=DBP1.00
+project name=FPSC-Kreatorshina engine 2.0
+
+; **** source file information ****
+main=FPSC-Kreatorshina engine 2.dba
+LineMain=110
+include1=Include\_basic_functions.dba
+LineInclude1=227
+include2=Include\setup_mod.dba
+LineInclude2=0
+include3=Include\loadsegmentsdata.dba
+LineInclude3=0
+include4=Include\Load_static.dba
+LineInclude4=27
+include5=Include\Advanced_Lighting_KMOD.dba
+LineInclude5=0
+include6=Include\Advanced Lighting.dba
+LineInclude6=660
+include7=Include\newentityload.dba
+LineInclude7=0
+include8=Include\PhysX Constants.dba
+LineInclude8=0
+include9=Include\Dynamix.dba
+LineInclude9=30
+include10=Include\sparky_collision.dba
+LineInclude10=124
+include11=Include\CharacterController.dba
+LineInclude11=0
+include12=Include\portals.dba
+LineInclude12=92
+include13=Include\soundcore.dba
+LineInclude13=3
+include14=Include\weapon.dba
+LineInclude14=108
+include15=Include\temproom.dba
+LineInclude15=0
+
+; **** Executable Information  ***
+; build types: exe, media, installer, alone
+executable=E:\Serega\Program Files\FPS Creator\bin\FPSCK2.exe
+build type=alone
+; ** Media file compression **
+compression=NO
+
+; ** Media file encryption **
+encryption=NO
+; ** Display the card options screen window? **
+card options window=NO
+
+; **** debugger information ****
+; If the editor sets this to yes, it is running in debug mode
+CLI=NO
+CommandLineArguments=
+
+; **** display mode information ****
+app title=FPSC - KREATORSHINA
+
+; graphics mode options: fullscreen, window, desktop, fulldesktop, hidden
+graphics mode=fulldesktop
+fullscreen resolution=800x600x32
+
+; arbitrary sizes are valid for windowed mode
+window resolution=800x600
+
+; **** External Files Information ****
+
+; **** Media ****
+; Example entries: media1=graphics\*.jpg
+media root path=E:\Serega\Temp\core\FPSC-Kreatorshina engine 2\
+
+; **** Icons ****
+icon1=E:\Serega\Temp\core\FPSC-Kreatorshina engine\k-mod.ico
+
+; **** Cursors ****
+
+; **** Version Info ****
+VerComments=
+VerCompany=
+VerFileDesc=
+VerFileNumber=v1.0
+VerInternal=v1.0
+VerCopyright=
+VerTrademark=
+VerFilename=
+VerProduct=
+VerProductNumber=v1.0
+
+; **** To Do ****
+
+; **** Comments ****
+comments1=
+
+; **** Advanced (setup.ini) configuration ****
+RemoveSafetyCode=NO
+SafeArrays=NO
+LocalTempFolder=NO
+ExternaliseDLLS=NO

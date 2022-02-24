@@ -1,0 +1,281 @@
+Rem ***** Included Source File *****
+gosub _basic_functions_init
+
+type al_lighttype
+number as integer
+position as xyztype
+angle as xyztype
+range as integer
+color as rgbtype
+shadows as integer
+static as integer
+endtype
+
+type entityphysxtype
+mass as integer
+friction as integer
+rest as float
+collision as integer
+material as integer
+kinematic as integer
+endtype
+
+type myentityloadtype
+obj as integer
+static as integer
+mesh$ as string
+texture$ as string
+position as xyztype
+angle as xyztype
+scale as integer
+phy as entityphysxtype
+alpha as integer
+endtype
+
+_myconvert_entity:
+
+`------------DYM----------------------
+dim mylight(0) as al_lighttype
+dim myentityd(0) as myentityloadtype
+dim mycharacter(0) as myentityloadtype
+dim myentitys(0) as myentityloadtype
+`---------------------------------------
+`print console "===================================="
+`print console CHR$(10)
+for e=1 to array count(entityelement())
+`-------------------------------------ALL INFO--------------------
+static=entityelement(e).staticflag
+entid=entityelement(e).bankindex
+fileobj$=entityprofile(entid).model$
+alpha=entityelement(e).eleprof.transparency
+`dbofileobj$=newformat(fileobj$,".dbo")
+`if file exist(dbofileobj$)=1 then fileobj$=dbofileobj$
+tfixnewy#=entityprofile(entid).fixnewy
+scale=entityelement(e).eleprof.scale
+ischaracter=entityprofile(entid).ischaracter
+if scale=0 then scale=100
+texpath$=fast lower$(entityprofile(entid).texpath$)
+ttx$=fast lower$(entityelement(e).eleprof.texd$)
+entfolder$=entitybank$(entid)
+tentfolder$=left$(entfolder$,LAST INSTR(entfolder$,"\"))
+lchr=LAST INSTR(ttx$,"\")
+if lchr>0 then tentfolder$="" : texpath$=""
+if ttx$<>""
+if texpath$=""
+ttexture$=tentfolder$+ttx$
+else
+ttexture$=texpath$+ttx$
+endif
+else
+ttexture$=ttx$
+endif
+
+ttexture$=replace_text(ttexture$,"\\","\")
+
+`-------------------------------------ALL INFO--------------------
+`-------------------------------------CONVERT PROCESS--------------------
+if entityelement(e).eleprof.light.range>0 `light
+
+`-------------------LIGHTS
+if entityelement(e).maintype>0
+array insert at bottom mylight()
+cl=array count(mylight())
+mylight(cl).range=entityelement(e).eleprof.light.range
+mylight(cl).color.r=rgbr(entityelement(e).eleprof.light.color)
+mylight(cl).color.g=rgbg(entityelement(e).eleprof.light.color)
+mylight(cl).color.b=rgbb(entityelement(e).eleprof.light.color)
+mylight(cl).position.x=entityelement(e).x
+mylight(cl).position.y=entityelement(e).y
+mylight(cl).position.z=entityelement(e).z
+mylight(cl).static=entityelement(e).staticflag
+endif
+
+else `notlight
+
+`--------------CHARACTERS ARRAY------------
+if static=0 and ischaracter>0
+array insert at bottom mycharacter()
+z=array count(mycharacter())
+mycharacter(z).static=static
+mycharacter(z).mesh$=fileobj$
+mycharacter(z).texture$=ttexture$
+mycharacter(z).position.x=entityelement(e).x
+mycharacter(z).position.y=entityelement(e).y
+mycharacter(z).position.z=entityelement(e).z
+mycharacter(z).angle.x=entityelement(e).rx
+mycharacter(z).angle.y=entityelement(e).ry+tfixnewy#
+mycharacter(z).angle.z=entityelement(e).rz
+mycharacter(z).scale=scale
+mycharacter(z).alpha=alpha
+mycharacter(z).phy.mass=entityelement(e).eleprof.phyweight
+mycharacter(z).phy.friction=entityelement(e).eleprof.phyfriction
+mycharacter(z).phy.material=entityprofile(entid).materialindex
+mycharacter(z).phy.collision=entityprofile(entid).collisionmode
+mycharacter(z).phy.kinematic=entityelement(e).eleprof.isimmobile
+mycharacter(z).phy.rest=entityelement(e).eleprof.rotatethrow*0.1
+endif
+
+`--------------DYNAMIC OBJECTS ARRAY------------
+if static=0 and ischaracter=0
+array insert at bottom myentityd()
+z=array count(myentityd())
+myentityd(z).static=static
+myentityd(z).mesh$=fileobj$
+myentityd(z).texture$=ttexture$
+myentityd(z).position.x=entityelement(e).x
+myentityd(z).position.y=entityelement(e).y
+myentityd(z).position.z=entityelement(e).z
+myentityd(z).angle.x=entityelement(e).rx
+myentityd(z).angle.y=entityelement(e).ry+tfixnewy#
+myentityd(z).angle.z=entityelement(e).rz
+myentityd(z).scale=scale
+myentityd(z).alpha=alpha
+myentityd(z).phy.mass=entityelement(e).eleprof.phyweight
+myentityd(z).phy.friction=entityelement(e).eleprof.phyfriction
+myentityd(z).phy.material=entityprofile(entid).materialindex
+myentityd(z).phy.collision=entityprofile(entid).collisionmode
+myentityd(z).phy.kinematic=entityelement(e).eleprof.isimmobile
+myentityd(z).phy.rest=entityelement(e).eleprof.rotatethrow*0.1
+endif
+
+`--------------STATIC OBJECTS ARRAY------------
+if static=1 and ischaracter=0
+array insert at bottom myentitys()
+z=array count(myentitys())
+myentitys(z).static=static
+myentitys(z).mesh$=fileobj$
+myentitys(z).texture$=ttexture$
+myentitys(z).position.x=entityelement(e).x
+myentitys(z).position.y=entityelement(e).y
+myentitys(z).position.z=entityelement(e).z
+myentitys(z).angle.x=entityelement(e).rx
+myentitys(z).angle.y=entityelement(e).ry+tfixnewy#
+myentitys(z).angle.z=entityelement(e).rz
+myentitys(z).scale=scale
+myentitys(z).alpha=alpha
+myentitys(z).phy.mass=entityelement(e).eleprof.phyweight
+myentitys(z).phy.friction=entityelement(e).eleprof.phyfriction
+myentitys(z).phy.material=entityprofile(entid).materialindex
+myentitys(z).phy.collision=entityprofile(entid).collisionmode
+myentitys(z).phy.kinematic=entityelement(e).eleprof.isimmobile
+myentitys(z).phy.rest=entityelement(e).eleprof.rotatethrow*0.1
+endif
+
+endif `notlight
+next e
+
+`---------DELETE FIRST UNUSED POSITION--
+if array count(mylight())>0 then array delete element mylight(),0
+if array count(myentityd())>0 then array delete element myentityd(),0
+if array count(mycharacter())>0 then array delete element mycharacter(),0
+if array count(myentitys())>0 then array delete element myentitys(),0
+`---------------------------------------
+
+save_myentityd_array("temp\segments\dynamic_entitys.bin")
+save_myentitys_array("temp\segments\static_entitys.bin")
+save_mycharacter_array("temp\segments\character.bin")
+save_mylight_array("temp\segments\light.bin")
+`print console "===================================="
+`print console CHR$(10)
+return
+
+`----------SAVE----
+
+function save_myentityd_array(file$)
+if file exist(file$)=1 then delete file file$
+tcount=array count(myentityd())
+open to write 1,file$
+write file 1,tcount
+for z=0 to tcount
+write file 1,myentityd(z).static
+write string 1,myentityd(z).mesh$
+write string 1,myentityd(z).texture$
+write float 1,myentityd(z).position.x
+write float 1,myentityd(z).position.y
+write float 1,myentityd(z).position.z
+write float 1,myentityd(z).angle.x
+write float 1,myentityd(z).angle.y
+write float 1,myentityd(z).angle.z
+write file 1,myentityd(z).scale
+write file 1,myentityd(z).alpha
+write file 1,myentityd(z).phy.mass
+write file 1,myentityd(z).phy.friction
+write file 1,myentityd(z).phy.collision
+write file 1,myentityd(z).phy.material
+write file 1,myentityd(z).phy.kinematic
+write float 1,myentityd(z).phy.rest
+next z
+close file 1
+endfunction
+
+function save_myentitys_array(file$)
+if file exist(file$)=1 then delete file file$
+tcount=array count(myentitys())
+open to write 1,file$
+write file 1,tcount
+for z=0 to tcount
+write file 1,myentitys(z).static
+write string 1,myentitys(z).mesh$
+write string 1,myentitys(z).texture$
+write float 1,myentitys(z).position.x
+write float 1,myentitys(z).position.y
+write float 1,myentitys(z).position.z
+write float 1,myentitys(z).angle.x
+write float 1,myentitys(z).angle.y
+write float 1,myentitys(z).angle.z
+write file 1,myentitys(z).scale
+write file 1,myentitys(z).alpha
+write file 1,myentitys(z).phy.mass
+write file 1,myentitys(z).phy.friction
+write file 1,myentitys(z).phy.collision
+write file 1,myentitys(z).phy.material
+write file 1,myentitys(z).phy.kinematic
+write float 1,myentitys(z).phy.rest
+next z
+close file 1
+endfunction
+
+function save_mycharacter_array(file$)
+if file exist(file$)=1 then delete file file$
+tcount=array count(mycharacter())
+open to write 1,file$
+write file 1,tcount
+for z=0 to tcount
+write file 1,mycharacter(z).static
+write string 1,mycharacter(z).mesh$
+write string 1,mycharacter(z).texture$
+write float 1,mycharacter(z).position.x
+write float 1,mycharacter(z).position.y
+write float 1,mycharacter(z).position.z
+write float 1,mycharacter(z).angle.x
+write float 1,mycharacter(z).angle.y
+write float 1,mycharacter(z).angle.z
+write file 1,mycharacter(z).scale
+write file 1,mycharacter(z).alpha
+write file 1,mycharacter(z).phy.mass
+write file 1,mycharacter(z).phy.friction
+write file 1,mycharacter(z).phy.collision
+write file 1,mycharacter(z).phy.material
+write file 1,mycharacter(z).phy.kinematic
+write float 1,mycharacter(z).phy.rest
+next z
+close file 1
+endfunction
+
+function save_mylight_array(file$)
+if file exist(file$)=1 then delete file file$
+tcount=array count(mylight())
+open to write 1,file$
+write file 1,tcount
+for cl=0 to tcount
+write file 1,mylight(cl).range
+write byte 1,mylight(cl).color.r
+write byte 1,mylight(cl).color.g
+write byte 1,mylight(cl).color.b
+write float 1,mylight(cl).position.x
+write float 1,mylight(cl).position.y
+write float 1,mylight(cl).position.z
+write file 1,mylight(cl).static
+next cl
+close file 1
+endfunction

@@ -1,0 +1,286 @@
+Rem ***** Included Source File *****
+
+function collidewithportalwindow(obj)
+for w=1 to array count(portalwindow())
+obja=portalwindow(w).obj
+mobj=object instance of(obj)
+if mobj=0 then mobj=obj
+if objectsdistance(obja,obj)<object size(obja)*0.5 then exitfunction w
+`tpx#=object position x(obj)+object collision center x(mobj)
+`tpy#=object position y(obj)+object collision center y(mobj)
+`tpz#=object position z(obj)+object collision center z(mobj)
+`if distance(portalwindow(w).position.x,portalwindow(w).position.y,portalwindow(w).position.z,tpx#,tpy#,tpz#)<object size(obja)*0.5 then exitfunction w
+next w
+endfunction 0
+
+_portalsupdate:
+if room=0 then global room : room=2
+
+if keypressed(18)=1
+oldx#=camera position x() : oldy#=camera position y() : oldz#=camera position z()
+move camera 1500 : ray=sc_raycastgroup(4,oldx#,oldy#,oldz#,camera position x(),camera position y(),camera position z(),0) : move camera -1500
+if ray>0
+pickdoor=SC_getObjectHit()
+if object visible(pickdoor)=1 then hide object pickdoor else show object pickdoor
+endif
+endif
+
+`clear console
+if keypressed(60)=1
+if wireframe=0 then wireframe=1 else wireframe=0
+endif
+
+`Display portals
+for e=0 to array count(myentityd())
+obj=myentityd(e).obj
+if objectexist(obj)
+if myentityd(e).portal>0
+portalwindow(myentityd(e).portal).visible=1
+if object visible(obj)=1 then portalwindow(myentityd(e).portal).visible=0
+if myentityd(e).alpha>0 then portalwindow(myentityd(e).portal).visible=1
+endif
+endif
+next e
+
+`hide all rooms
+for s=0 to array count(staticroom())
+if objectexist(staticroom(s).obj)
+Object_SetVisible(staticroom(s).alobj,0)
+set object wireframe staticroom(s).obj,wireframe
+staticroom(s).visible=0
+endif
+next s
+
+`find and show main room
+room=get_room(camera position x(),camera position y(),camera position z())
+if room=0 then room=2
+text screen width()-50,screen height()-50,"room="+str$(room)
+if objectexist(staticroom(room).obj) then Object_SetVisible(staticroom(room).alobj,1) : staticroom(room).visible=1
+
+`main portal systems
+for w=1 to array count(portalwindow())
+ga1=portalwindow(w).group.a : gb1=portalwindow(w).group.b : pobja=portalwindow(w).obj
+if portalwindow(w).visible>0 and ga1<>gb1
+position object pobja,portalwindow(w).position.x,portalwindow(w).position.y,portalwindow(w).position.z
+rotate object pobja,portalwindow(w).angle.x,portalwindow(w).angle.y,portalwindow(w).angle.z
+
+if objectdistance(pobja)<object size(pobja)
+rotate object pobja,camera angle x(),camera angle y(),camera angle z()
+move object pobja,(objectsize(pobja)-objectdistance(pobja))*0.5
+endif
+
+if object in screen(pobja)=1
+if ga1=room or gb1=room
+if ga1=room then Object_SetVisible(staticroom(gb1).alobj,1) : staticroom(gb1).visible=1
+if gb1=room then Object_SetVisible(staticroom(ga1).alobj,1) : staticroom(ga1).visible=1
+fl=portalwindow(w).fl : ll=portalwindow(w).ll
+if fl<>0 and ll<>0
+for l=fl to ll
+b=portalwindowlinks(l).b : pobjb=portalwindow(b).obj : ga2=portalwindow(b).group.a : gb2=portalwindow(b).group.b
+
+if pobja<>pobjb and portalwindow(b).visible>0 and ga2<>gb2
+
+if objectdistance(pobja)<object size(pobja)
+point object pobja,portalwindow(b).position.x,portalwindow(b).position.y,portalwindow(b).position.z
+move object pobja,(objectsize(pobja)-objectdistance(pobja))*0.5
+endif
+
+if screen_collision(pobja,pobjb)>0
+if staticroom(ga2).visible=1 then Object_SetVisible(staticroom(gb2).alobj,1) : staticroom(gb2).visible=1
+if staticroom(gb2).visible=1 then Object_SetVisible(staticroom(ga2).alobj,1) : staticroom(ga2).visible=1
+endif
+
+`gosub _debuginfo
+
+position object pobja,portalwindow(w).position.x,portalwindow(w).position.y,portalwindow(w).position.z
+rotate object pobja,portalwindow(w).angle.x,portalwindow(w).angle.y,portalwindow(w).angle.z
+position object pobjb,portalwindow(b).position.x,portalwindow(b).position.y,portalwindow(b).position.z
+rotate object pobjb,portalwindow(b).angle.x,portalwindow(b).angle.y,portalwindow(b).angle.z
+endif
+next l
+endif
+endif
+endif
+endif
+next w
+
+`show global shadows if needed
+Object_SetVisible(staticroom(2).alobj,1)
+if staticroom(2).visible=1 then Object_SetMask(staticroom(2).obj,1,km_staticshadows,km_staticshadows*4,1) else Object_SetMask(staticroom(2).obj,0,km_staticshadows,km_staticshadows*4,1)
+
+`show\hide entities
+for e=0 to array count(myentityd())
+obj=myentityd(e).obj
+if objectexist(obj)
+mobj=object instance of(obj)
+if mobj=0 then mobj=obj
+`set object wireframe mobj,wireframe
+if distance(object position x(obj),object position y(obj),object position z(obj),myentityd(e).position.x,myentityd(e).position.y,myentityd(e).position.z)<>0
+myentityd(e).position.x=object position x(obj) : myentityd(e).position.y=object position y(obj) : myentityd(e).position.z=object position z(obj)
+myentityd(e).angle.x=object angle x(obj) : myentityd(e).angle.y=object angle y(obj) : myentityd(e).angle.z=object angle z(obj)
+ccx#=object collision center x(mobj) : ccy#=object collision center y(mobj) : ccz#=object collision center z(mobj)
+myentityd(e).room=get_room(myentityd(e).position.x+ccx#,myentityd(e).position.y+ccy#,myentityd(e).position.z+ccz#)
+endif
+r=myentityd(e).room : ra=myentityd(e).rooma : rb=myentityd(e).roomb
+if (staticroom(r).visible=1 or staticroom(ra).visible=1 or staticroom(rb).visible=1)
+if myentityd(e).alpha>1 then AlphaObject_SetVisible(myentityd(e).alobj,1) else Object_SetVisible(myentityd(e).alobj,1)
+myentityd(e).visible=1
+if myentityd(e).phy.kinematic=0
+tgroup=2
+else
+tgroup=4
+endif
+else
+if myentityd(e).alpha>1 then AlphaObject_SetVisible(myentityd(e).alobj,0) else Object_SetVisible(myentityd(e).alobj,0)
+myentityd(e).visible=0
+if myentityd(e).phy.kinematic=0
+tgroup=0
+else
+tgroup=4
+endif
+endif
+
+if myentityd(e).phy.colgroup<>tgroup then dyn_setobjectgroup(obj,tgroup) : myentityd(e).phy.colgroup=tgroup
+
+`if myentityd(e).visible=1 and myentityd(e).portal>0
+`tcansee=camerainviewcone(obj,120)
+`if tcansee=1 then text object screen x(obj),object screen y(obj)+10,"I can see you clear! "
+`endif
+
+endif
+next e
+
+`show\hide characters
+for e=0 to array count(mycharacter())
+obj=mycharacter(e).obj : mobj=mycharacter(e).mobj
+if objectexist(obj)
+`set object wireframe obj,wireframe
+
+if distance(object position x(obj),object position y(obj),object position z(obj),mycharacter(e).position.x,mycharacter(e).position.y,mycharacter(e).position.z)<>0
+mycharacter(e).position.x=object position x(obj) : mycharacter(e).position.y=object position y(obj) : mycharacter(e).position.z=object position z(obj)
+mycharacter(e).angle.x=object angle x(obj) : mycharacter(e).angle.y=object angle y(obj) : mycharacter(e).angle.z=object angle z(obj)
+position object mobj,mycharacter(e).position.x,mycharacter(e).position.y,mycharacter(e).position.z
+rotate object mobj,mycharacter(e).angle.x,mycharacter(e).angle.y,mycharacter(e).angle.z
+ccy#=object size y(obj)*0.5
+mycharacter(e).room=get_room(mycharacter(e).position.x,mycharacter(e).position.y+ccy#,mycharacter(e).position.z)
+endif
+
+r=mycharacter(e).room
+if staticroom(r).visible=0
+Object_SetVisible(mycharacter(e).alobj,0)
+km_Object_SetMask(obj,0,km_charactershadows,km_charactershadows,0)
+mycharacter(e).visible=0
+else
+Object_SetVisible(mycharacter(e).alobj,1)
+km_Object_SetMask(obj,1,km_charactershadows,km_charactershadows,0)
+mycharacter(e).visible=1
+endif
+
+remstart
+oldcanseeplr=mycharacter(e).canseeplr
+if mycharacter(e).visible=1
+thead=findlimb(obj,"Bip01_Head")
+tpx#=limbpositionx(obj,thead) : tpy#=limbpositiony(obj,thead) : tpz#=limbpositionz(obj,thead)
+position object positioncube,tpx#,tpy#,tpz#
+rotate object positioncube,0,object angle y(obj)+180,0
+dc#=distance(tpx#,tpy#,tpz#,camera position x(),camera position y(),camera position z())
+tcansee=camerainviewcone(positioncube,120)
+if tcansee>0
+raycam=sc_raycastgroup(1,tpx#,tpy#,tpz#,camera position x(),camera position y(),camera position z(),0)
+if raycam>0
+mycharacter(e).canseeplr=curvevalue(-0.1,mycharacter(e).canseeplr,120)
+else
+mycharacter(e).canseeplr=curvevalue(1.1,mycharacter(e).canseeplr,dc#*0.05)
+if mycharacter(e).canseeplr>1 then mycharacter(e).canseeplr=1
+endif
+else
+mycharacter(e).canseeplr=curvevalue(-0.1,mycharacter(e).canseeplr,120)
+endif
+else
+mycharacter(e).canseeplr=curvevalue(-0.1,mycharacter(e).canseeplr,120)
+endif
+showcanseeyoutext(e)
+remend
+
+endif
+next e
+
+`show\hide lights
+for e=0 to array count(mylight())
+pz=mylight(e).room
+if pz>0
+if staticroom(pz).visible=1
+intens#=curvevalue(km_pointlightintensity,AL_PointLight(mylight(e).number).Intensity,8)
+`if intens#>0.1 then PointLight_SetVisible(mylight(e).number,1)
+`PointLight_SetIntensity(mylight(e).number,intens#)
+`PointLight_SetDrawDistance(mylight(e).number,100000)
+if intens#>0.1 then SpotLight_SetVisible(mylight(e).number,1)
+SpotLight_SetIntensity(mylight(e).number,intens#)
+SpotLight_SetDrawDistance(mylight(e).number,100000)
+else
+intens#=curvevalue(0,(AL_PointLight(mylight(e).number).Intensity),8)
+`if intens#<0.1 then PointLight_SetVisible(mylight(e).number,0)
+`PointLight_SetIntensity(mylight(e).number,intens#)
+`PointLight_SetDrawDistance(mylight(e).number,1)
+if intens#<0.1 then SpotLight_SetVisible(mylight(e).number,0)
+SpotLight_SetIntensity(mylight(e).number,intens#)
+SpotLight_SetDrawDistance(mylight(e).number,1)
+endif
+endif
+next e
+
+return
+
+function showcanseeyoutext(e)
+if mycharacter(e).canseeplr=1 then text object screen x(positioncube),object screen y(positioncube)+10,"I can see you clear! "+str$(mycharacter(e).canseeplr*100)+"%" : exitfunction
+if mycharacter(e).canseeplr>0.75 then text object screen x(positioncube),object screen y(positioncube)+10,"I can see you! "+str$(mycharacter(e).canseeplr*100)+"%" : exitfunction
+if mycharacter(e).canseeplr>0.5 then text object screen x(positioncube),object screen y(positioncube)+10,"I almost can see you! "+str$(mycharacter(e).canseeplr*100)+"%" : exitfunction
+if mycharacter(e).canseeplr>0.25 then text object screen x(positioncube),object screen y(positioncube)+10,"I barely see you! "+str$(mycharacter(e).canseeplr*100)+"%" : exitfunction
+endfunction
+
+function get_room(px#,py#,pz#)
+z=POINT IN ZONE GROUP(px#,py#,pz#,1)
+`z=pointinzone(px#,py#,pz#)
+if z>0 then group=portalzones(z).room
+endfunction group
+
+function pointinzone(px#,py#,pz#)
+for p=1 to array count(portalzones())
+x1#=portalzones(p).px-(portalzones(p).sx*0.5)
+x2#=portalzones(p).px+(portalzones(p).sx*0.5)
+y1#=portalzones(p).y1-(portalzones(p).sy*0.5)
+y2#=portalzones(p).y2+(portalzones(p).sy*0.5)
+z1#=portalzones(p).z1+(portalzones(p).sz*0.5)
+z2#=portalzones(p).z2-(portalzones(p).sz*0.5)
+if px#>x1# then c=1
+if py#>y1# then c=1
+if pz#<z1# then c=1
+if px#<x2# then c=1
+if py#<y2# then c=1
+if pz#>z2# then c=1
+if c=1 then exitfunction p
+next p
+endfunction 0
+
+_debuginfo:
+
+objax#=oBJECT SCREEN X(pobja)
+objay#=oBJECT SCREEN y(pobja)
+objbx#=oBJECT SCREEN X(pobjb)
+objby#=oBJECT SCREEN y(pobjb)
+
+if object in screen(pobja)=1 and object in screen(pobjb)=1
+LINE objax#,objay#,objbx#,objby#
+screensizea#=Objectinscreensize(pobja)
+circle objax#,objay#,(sh*screensizea#)*0.5
+screensizeb#=Objectinscreensize(pobjb)
+circle objbx#,objby#,(sh*screensizeb#)*0.5
+
+center text objbx#,objby#+20,"ga1="+str$(ga1)
+center text objbx#,objby#+30,"ga2="+str$(ga2)
+center text objbx#,objby#+40,"gb1="+str$(gb1)
+center text objbx#,objby#+50,"gb2="+str$(gb2)
+
+endif
+
+return

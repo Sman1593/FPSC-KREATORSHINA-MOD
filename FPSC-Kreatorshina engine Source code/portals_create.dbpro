@@ -1,0 +1,72 @@
+; **** Dark BASIC Professional Project File ****
+; **** Written by Synergy Editor ****
+version=DBP1.00
+project name=portals_create
+
+; **** source file information ****
+main=E:\temp\AppData\Local\Temp\Untitled1.dba
+LineMain=11
+include1=Include\loadsegmentsdata.dba
+LineInclude1=72
+include2=Include\_basic_functions.dba
+LineInclude2=0
+
+; **** Executable Information  ***
+; build types: exe, media, installer, alone
+executable=Application.exe
+build type=exe
+; ** Media file compression **
+compression=NO
+
+; ** Media file encryption **
+encryption=NO
+; ** Display the card options screen window? **
+card options window=NO
+
+; **** debugger information ****
+; If the editor sets this to yes, it is running in debug mode
+CLI=NO
+CommandLineArguments=
+
+; **** display mode information ****
+app title=Dark Basic Pro Project
+
+; graphics mode options: fullscreen, window, desktop, fulldesktop, hidden
+graphics mode=window
+fullscreen resolution=640x480x32
+
+; arbitrary sizes are valid for windowed mode
+window resolution=640x480
+
+; **** External Files Information ****
+
+; **** Media ****
+; Example entries: media1=graphics\*.jpg
+media root path=E:\Serega\Temp\core\FPSC-Kreatorshina engine 2\
+
+; **** Icons ****
+
+; **** Cursors ****
+
+; **** Version Info ****
+VerComments=
+VerCompany=
+VerFileDesc=
+VerFileNumber=
+VerInternal=
+VerCopyright=
+VerTrademark=
+VerFilename=
+VerProduct=
+VerProductNumber=v1.0
+
+; **** To Do ****
+
+; **** Comments ****
+comments1=
+
+; **** Advanced (setup.ini) configuration ****
+RemoveSafetyCode=NO
+SafeArrays=YES
+LocalTempFolder=NO
+ExternaliseDLLS=NO

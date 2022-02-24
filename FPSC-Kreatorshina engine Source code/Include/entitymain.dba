@@ -1,0 +1,9 @@
+Rem ***** Included Source File *****
+
+_entity_update:
+
+`for e=0 to array count()
+`do something =D
+`next e
+
+return

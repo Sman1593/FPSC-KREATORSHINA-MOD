@@ -1,0 +1,575 @@
+Rem ***** Included Source File *****
+
+_static_data_init:
+if staticdatainit=0
+global staticdatainit as boolean
+global maxgroup
+
+global lmin
+global lmax
+global minx
+global maxx
+global miny
+global maxy
+
+type segmentprofilevistype
+overlay as integer
+f as integer
+r as integer
+wb as integer
+wr as integer
+wf as integer
+wl as integer
+owb as integer
+owr as integer
+owf as integer
+owl as integer
+ctl as integer
+ctr as integer
+cbr as integer
+cbl as integer
+octl as integer
+octr as integer
+ocbr as integer
+ocbl as integer
+portalmode as integer
+endtype
+
+type fpscsegmentprofilevistype
+angle as byte
+vis as segmentprofilevistype
+mode as integer
+endtype
+
+type fpscstaticsegmenttype
+seg as integer
+limb as integer
+obj as integer
+overlay as integer
+x as float
+lay as float
+y as float
+px as float
+py as float
+pz as float
+rx as float
+ry as float
+osx as integer
+osy as integer
+osz as integer
+vertc as integer
+csg as boolean
+rz as float
+offx as float
+offy as float
+offz as float
+upsize as integer
+downsize as integer
+leftsize as integer
+rightsize as integer
+material as byte
+colmode as byte
+texture$ as string
+img as integer
+partmode as integer
+transparency as integer
+meshname$ as string
+optimesh$ as string
+isfloor as integer
+iswall as integer
+isoutwall as integer
+iscorner as integer
+isoutcorner as integer
+isroof as integer
+overlayexist as integer
+endtype
+
+type optimizedseg
+obj as integer
+alobj as integer
+occobj as integer
+fseg as integer
+texture$ as string
+mesh$ as string
+px as float
+py as float
+pz as float
+collision as integer
+collisiontype as integer
+csg as integer
+isfloor as integer
+iswall as integer
+isoutwall as integer
+iscorner as integer
+isoutcorner as integer
+isroof as integer
+overlay as integer
+saveobj as byte
+endtype
+
+type portalzonetype
+obj as integer
+room as integer
+px as float
+py as float
+pz as float
+sx as float
+sy as float
+sz as float
+x1 as float
+x2 as float
+y1 as float
+y2 as float
+z1 as float
+z2 as float
+endtype
+
+type ABTYPE
+A as integer
+B as integer
+endtype
+
+type portalwindowtype
+position as xyztype
+angle as xyztype
+size as xyztype
+group as ABTYPE
+visible as boolean
+obj as integer
+fl as integer
+ll as integer
+endtype
+
+type segmenttype
+anglex as float
+angley as float
+anglez as float
+texture$ as string
+mesh$ as string
+meshid as word
+endtype
+staticdatainit=1
+endif
+return
+
+function segmentsdatainit()
+dim segmentdata(0) as segmenttype
+dim staticobjects(0)
+endfunction
+
+function segmentsdataclear()
+empty array segmentdata()
+endfunction
+
+function findsegmenttype(cmesh$,ctexture$,anglex#,angley#,anglez#)
+for f=1 to array count(segmentdata())
+if segmentdata(f).texture$=ctexture$ and segmentdata(f).mesh$=cmesh$ and segmentdata(f).anglex=anglex# and segmentdata(f).angley=angley# and segmentdata(f).anglez=anglez#
+exitfunction f
+endif
+next f
+endfunction 0
+
+function getsegmenttype(cmesh$,ctexture$,anglex#,angley#,anglez#)
+f=findsegmenttype(cmesh$,ctexture$,anglex#,angley#,anglez#)
+if f=0
+array insert at bottom segmentdata()
+f=array count(segmentdata())
+segmentdata(f).texture$=ctexture$
+segmentdata(f).mesh$=cmesh$
+segmentdata(f).anglex=anglex#
+segmentdata(f).angley=angley#
+segmentdata(f).anglez=anglez#
+endif
+endfunction f
+
+
+function savesegmentsarray(file$)
+gosub _static_data_init
+deletefile(file$)
+fsscount=array count(fss())
+open to write 1,file$
+write file 1,fsscount
+for f=0 to fsscount
+write file 1,fss(f).seg
+write file 1,fss(f).limb
+write file 1,fss(f).obj
+write file 1,fss(f).overlay
+write float 1,fss(f).x
+write float 1,fss(f).lay
+write float 1,fss(f).y
+write float 1,fss(f).px
+write float 1,fss(f).py
+write float 1,fss(f).pz
+write float 1,fss(f).rx
+write float 1,fss(f).ry
+write file 1,fss(f).osx
+write file 1,fss(f).osy
+write file 1,fss(f).osz
+write file 1,fss(f).vertc
+write byte 1,fss(f).csg
+write float 1,fss(f).rz
+write float 1,fss(f).offx
+write float 1,fss(f).offy
+write float 1,fss(f).offz
+write file 1,fss(f).upsize
+write file 1,fss(f).downsize
+write byte 1,fss(f).material
+write byte 1,fss(f).colmode
+write string 1,fss(f).texture$
+write file 1,fss(f).partmode
+write file 1,fss(f).transparency
+write string 1,fss(f).meshname$
+write string 1,fss(f).optimesh$
+write file 1,fss(f).isfloor
+write file 1,fss(f).iswall
+write file 1,fss(f).isoutwall
+write file 1,fss(f).iscorner
+write file 1,fss(f).isoutcorner
+write file 1,fss(f).isroof
+write file 1,fss(f).overlayexist
+next f
+close file 1
+endfunction
+
+function loadsegmentsarray(file$)
+gosub _static_data_init
+if fileexist(file$)=1
+open to read 1,file$
+read file 1,fsscount
+undim fss()
+dim fss(fsscount) as fpscstaticsegmenttype
+for f=0 to fsscount
+read file 1,fss(f).seg
+read file 1,fss(f).limb
+read file 1,fss(f).obj
+read file 1,fss(f).overlay
+read float 1,fss(f).x
+read float 1,fss(f).lay
+read float 1,fss(f).y
+read float 1,fss(f).px
+read float 1,fss(f).py
+read float 1,fss(f).pz
+read float 1,fss(f).rx
+read float 1,fss(f).ry
+read file 1,fss(f).osx
+read file 1,fss(f).osy
+read file 1,fss(f).osz
+read file 1,fss(f).vertc
+read byte 1,fss(f).csg
+read float 1,fss(f).rz
+read float 1,fss(f).offx
+read float 1,fss(f).offy
+read float 1,fss(f).offz
+read file 1,fss(f).upsize
+read file 1,fss(f).downsize
+read byte 1,fss(f).material
+read byte 1,fss(f).colmode
+read string 1,fss(f).texture$
+read file 1,fss(f).partmode
+read file 1,fss(f).transparency
+read string 1,fss(f).meshname$
+read string 1,fss(f).optimesh$
+read file 1,fss(f).isfloor
+read file 1,fss(f).iswall
+read file 1,fss(f).isoutwall
+read file 1,fss(f).iscorner
+read file 1,fss(f).isoutcorner
+read file 1,fss(f).isroof
+read file 1,fss(f).overlayexist
+next f
+close file 1
+endif
+endfunction fsscount
+
+function savesegobjects(filename$)
+gosub _static_data_init
+deletefile(filename$)
+segmax=array count(oseg())
+open to write 1,filename$
+write file 1,segmax
+for cseg=0 to segmax
+write file 1,oseg(cseg).obj
+write file 1,oseg(cseg).occobj
+write file 1,oseg(cseg).fseg
+write string 1,oseg(cseg).texture$
+write string 1,oseg(cseg).mesh$
+write float 1,oseg(cseg).px
+write float 1,oseg(cseg).py
+write float 1,oseg(cseg).pz
+write file 1,oseg(cseg).collision
+write file 1,oseg(cseg).collisiontype
+write file 1,oseg(cseg).csg
+write file 1,oseg(cseg).isfloor
+write file 1,oseg(cseg).iswall
+write file 1,oseg(cseg).isoutwall
+write file 1,oseg(cseg).iscorner
+write file 1,oseg(cseg).isoutcorner
+write file 1,oseg(cseg).isroof
+write file 1,oseg(cseg).overlay
+write byte 1,oseg(cseg).saveobj
+next cseg
+close file 1
+endfunction
+
+function loadsegobjects(filename$)
+gosub _static_data_init
+if fileexist(filename$)=1
+open to read 1,filename$
+read file 1,segmax
+undim oseg()
+dim oseg(segmax) as optimizedseg
+for cseg=0 to segmax
+read file 1,oseg(cseg).obj
+read file 1,oseg(cseg).occobj
+read file 1,oseg(cseg).fseg
+read string 1,oseg(cseg).texture$
+read string 1,oseg(cseg).mesh$
+read float 1,oseg(cseg).px
+read float 1,oseg(cseg).py
+read float 1,oseg(cseg).pz
+read file 1,oseg(cseg).collision
+read file 1,oseg(cseg).collisiontype
+read file 1,oseg(cseg).csg
+read file 1,oseg(cseg).isfloor
+read file 1,oseg(cseg).iswall
+read file 1,oseg(cseg).isoutwall
+read file 1,oseg(cseg).iscorner
+read file 1,oseg(cseg).isoutcorner
+read file 1,oseg(cseg).isroof
+read file 1,oseg(cseg).overlay
+read byte 1,oseg(cseg).saveobj
+next cseg
+close file 1
+endif
+endfunction segmax
+
+
+function saveportals(filename$)
+gosub _static_data_init
+deletefile(filename$)
+prtmax=array count(portalzones())
+open to write 1,filename$
+write file 1,prtmax
+for cprt=0 to prtmax
+write file 1,portalzones(cprt).room
+write float 1,portalzones(cprt).px
+write float 1,portalzones(cprt).py
+write float 1,portalzones(cprt).pz
+write float 1,portalzones(cprt).sx
+write float 1,portalzones(cprt).sy
+write float 1,portalzones(cprt).sz
+write float 1,portalzones(cprt).x1
+write float 1,portalzones(cprt).y1
+write float 1,portalzones(cprt).z1
+write float 1,portalzones(cprt).x2
+write float 1,portalzones(cprt).y2
+write float 1,portalzones(cprt).z2
+next cprt
+close file 1
+endfunction
+
+function loadportals(filename$)
+gosub _static_data_init
+if fileexist(filename$)=1
+open to read 1,filename$
+read file 1,prtmax
+undim portalzones()
+dim portalzones(prtmax) as portalzonetype
+for cprt=0 to prtmax
+read file 1,portalzones(cprt).room
+read float 1,portalzones(cprt).px
+read float 1,portalzones(cprt).py
+read float 1,portalzones(cprt).pz
+read float 1,portalzones(cprt).sx
+read float 1,portalzones(cprt).sy
+read float 1,portalzones(cprt).sz
+read float 1,portalzones(cprt).x1
+read float 1,portalzones(cprt).y1
+read float 1,portalzones(cprt).z1
+read float 1,portalzones(cprt).x2
+read float 1,portalzones(cprt).y2
+read float 1,portalzones(cprt).z2
+next cprt
+close file 1
+for cprt=1 to array count(portalzones())
+SET ZONE cprt,portalzones(cprt).x1,portalzones(cprt).y1,portalzones(cprt).z1,portalzones(cprt).x2,portalzones(cprt).y2,portalzones(cprt).z2
+place zone in group cprt,1
+next cprt
+endif
+endfunction
+
+///////////////////////////////////////////////////////////////
+
+function saveportalwindows(filename$)
+gosub _static_data_init
+deletefile(filename$)
+wmax=array count(portalwindow())
+open to write 1,filename$
+write file 1,wmax
+for w=0 to wmax
+write float 1,portalwindow(w).position.x
+write float 1,portalwindow(w).position.y
+write float 1,portalwindow(w).position.z
+write float 1,portalwindow(w).angle.x
+write float 1,portalwindow(w).angle.y
+write float 1,portalwindow(w).angle.z
+write float 1,portalwindow(w).size.x
+write float 1,portalwindow(w).size.y
+write float 1,portalwindow(w).size.z
+write file 1,portalwindow(w).group.a
+write file 1,portalwindow(w).group.b
+write file 1,portalwindow(w).visible
+next w
+close file 1
+endfunction
+
+function loadportalwindows(filename$)
+gosub _static_data_init
+if fileexist(filename$)=1
+open to read 1,filename$
+read file 1,wmax
+undim portalwindow()
+dim portalwindow(wmax) as portalwindowtype
+for w=0 to wmax
+read float 1,portalwindow(w).position.x
+read float 1,portalwindow(w).position.y
+read float 1,portalwindow(w).position.z
+read float 1,portalwindow(w).angle.x
+read float 1,portalwindow(w).angle.y
+read float 1,portalwindow(w).angle.z
+read float 1,portalwindow(w).size.x
+read float 1,portalwindow(w).size.y
+read float 1,portalwindow(w).size.z
+read file 1,portalwindow(w).group.a
+read file 1,portalwindow(w).group.b
+read file 1,portalwindow(w).visible
+portalwindow(w).visible=1
+maxsize#=max(maxsize#,portalwindow(w).size.x)
+maxsize#=max(maxsize#,portalwindow(w).size.y)
+maxsize#=max(maxsize#,portalwindow(w).size.z)
+portalwindow(w).obj=makeobjectcube(maxsize#)
+`portalwindow(w).obj=makeobjectbox(portalwindow(w).size.x,portalwindow(w).size.y,portalwindow(w).size.z)
+position object portalwindow(w).obj,portalwindow(w).position.x,portalwindow(w).position.y,portalwindow(w).position.z
+rotate object portalwindow(w).obj,portalwindow(w).angle.x,portalwindow(w).angle.y,portalwindow(w).angle.z
+`calculate object bounds portalwindow(w).obj
+exclude object on portalwindow(w).obj
+maxgroup=max(maxgroup,portalwindow(w).group.a)
+maxgroup=max(maxgroup,portalwindow(w).group.b)
+next w
+close file 1
+
+endif
+endfunction
+
+function loadportallinks(pfile$)
+if fileexist(pfile$)=1
+file=find free file()
+open to read file,pfile$
+read file file,maxlinks
+dim portalwindowlinks(maxlinks) as abtype
+
+for nl=0 to array count(portalwindowlinks())
+read file file,portalwindowlinks(nl).a
+read file file,portalwindowlinks(nl).b
+a=portalwindowlinks(nl).a
+if portalwindow(a).fl=0
+portalwindow(a).fl=nl
+portalwindow(a).ll=nl
+else
+portalwindow(a).ll=nl
+endif
+next nl
+close file file
+endif
+endfunction
+
+///////////////////////////////////////////////////
+
+function savevseg(file$)
+gosub _static_data_init
+tfile=find free file()
+deletefile(file$)
+open to write tfile,file$
+write string tfile,str$(lmin)
+write string tfile,str$(lmax)
+write string tfile,str$(minx)
+write string tfile,str$(maxx)
+write string tfile,str$(miny)
+write string tfile,str$(maxy)
+
+for lay=lmin to lmax
+for x=minx to maxx
+for y=miny to maxy
+write string tfile,str$(vseg(lay,x,y).vis.f)
+write string tfile,str$(vseg(lay,x,y).vis.r)
+write string tfile,str$(vseg(lay,x,y).vis.wb)
+write string tfile,str$(vseg(lay,x,y).vis.owb)
+write string tfile,str$(vseg(lay,x,y).vis.wr)
+write string tfile,str$(vseg(lay,x,y).vis.owr)
+write string tfile,str$(vseg(lay,x,y).vis.wf)
+write string tfile,str$(vseg(lay,x,y).vis.owf)
+write string tfile,str$(vseg(lay,x,y).vis.wl)
+write string tfile,str$(vseg(lay,x,y).vis.owl)
+write string tfile,str$(vseg(lay,x,y).vis.ctl)
+write string tfile,str$(vseg(lay,x,y).vis.octl)
+write string tfile,str$(vseg(lay,x,y).vis.ctr)
+write string tfile,str$(vseg(lay,x,y).vis.octr)
+write string tfile,str$(vseg(lay,x,y).vis.cbr)
+write string tfile,str$(vseg(lay,x,y).vis.ocbr)
+write string tfile,str$(vseg(lay,x,y).vis.cbl)
+write string tfile,str$(vseg(lay,x,y).vis.ocbl)
+write string tfile,str$(vseg(lay,x,y).vis.portalmode)
+write string tfile,str$(vseg(lay,x,y).mode)
+write string tfile,str$(vseg(lay,x,y).angle)
+next y
+next x
+next lay
+close file tfile
+endfunction
+
+function loadvseg(file$)
+gosub _static_data_init
+tfile=find free file()
+if fileexist(file$)=1
+
+open to read tfile,file$
+
+read file tfile,lmin
+read file tfile,lmax
+read file tfile,minx
+read file tfile,maxx
+read file tfile,miny
+read file tfile,maxy
+
+dim vseg(lmax,maxx,maxy) as fpscsegmentprofilevistype
+
+for lay=lmin to lmax
+for x=minx to maxx
+for y=miny to maxy
+read file tfile,vseg(lay,x,y).vis.f
+read file tfile,vseg(lay,x,y).vis.r
+read file tfile,vseg(lay,x,y).vis.wb
+read file tfile,vseg(lay,x,y).vis.owb
+read file tfile,vseg(lay,x,y).vis.wr
+read file tfile,vseg(lay,x,y).vis.owr
+read file tfile,vseg(lay,x,y).vis.wf
+read file tfile,vseg(lay,x,y).vis.owf
+read file tfile,vseg(lay,x,y).vis.wl
+read file tfile,vseg(lay,x,y).vis.owl
+read file tfile,vseg(lay,x,y).vis.ctl
+read file tfile,vseg(lay,x,y).vis.octl
+read file tfile,vseg(lay,x,y).vis.ctr
+read file tfile,vseg(lay,x,y).vis.octr
+read file tfile,vseg(lay,x,y).vis.cbr
+read file tfile,vseg(lay,x,y).vis.ocbr
+read file tfile,vseg(lay,x,y).vis.cbl
+read file tfile,vseg(lay,x,y).vis.ocbl
+read file tfile,vseg(lay,x,y).vis.portalmode
+read file tfile,vseg(lay,x,y).mode
+read file tfile,vseg(lay,x,y).angle
+next y
+next x
+next lay
+close file tfile
+endif
+endfunction

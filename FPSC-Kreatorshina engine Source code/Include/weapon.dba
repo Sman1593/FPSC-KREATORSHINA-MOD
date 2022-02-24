@@ -1,0 +1,456 @@
+Rem ***** Included Source File *****
+
+_weapon_init:
+global weaponobj
+global weaponbox
+global wscale as float : wscale=1
+global followwpn : followwpn=1
+global tbullet
+global firetime#
+global airdensity# as float : airdensity#=0.3
+global teststartspeed as float
+global testmaxdist as float
+global lastbulletb as xyztype
+global lastbulletn as xyztype
+global lastbullet as xyztype
+global lasersightobj
+global bulletcam
+global twscale as float : twscale=45
+
+type weapontype
+obj as integer
+anim as interpolationtype
+firespot as integer
+firedir as integer
+position as xyztype
+angle as xyztype
+endtype
+
+type bullettype
+obj as integer
+hitobj as integer
+bounce as float
+maxbounce as float
+dist as float
+maxdist as float
+startspeed as float
+speed as float
+mass as float
+endtype
+
+dim weapon(1) as weapontype
+dim bullet(0) as bullettype
+global gunfolder$
+gunfolder$="gamecore\guns\ww2\colt45\"
+weaponobj=loadobject(gunfolder$+"HUD.x","",0,0)
+
+scale object weaponobj,500/object size(weaponobj),500/object size(weaponobj),500/object size(weaponobj)
+set object effect weaponobj,2
+ttex=loadimage(gunfolder$+"gun_D2.dds",0)
+texture object weaponobj,0,ttex
+ttex=loadimage(gunfolder$+"gun_N.dds",0)
+texture object weaponobj,1,ttex
+ttex=loadimage(gunfolder$+"gun_S.dds",0)
+texture object weaponobj,2,ttex
+disable object zdepth weaponobj
+set object fov weaponobj,twscale
+km_Object_SetMask(weaponobj,1,CHARACTERSHADOWS,CHARACTERSHADOWS,0)
+weapon(1).obj=weaponobj
+weapon(1).firespot=findlimb(weaponobj,"firespot")
+weapon(1).firedir=findlimb(weaponobj,"firedir")
+
+`LOAD SOUNDS
+tmp=preloadsound("audiobank\materials\ricochet1.wav",1)
+tmp=preloadsound(gunfolder$+"fire.wav",1)
+
+`create base bullet
+if bullet(0).obj=0
+`bullet(0).obj=makeobjectcube(1)
+bullet(0).obj=find free object()
+load object "gamecore\bulletholes\bulletholes1x1.x",bullet(0).obj
+scale object bullet(0).obj,1,1,1
+updatemesh(bullet(0).obj,-90)
+`convert object fvf bullet(0).obj,0x002||0x010||0x300
+set object cull bullet(0).obj,0
+set object wireframe bullet(0).obj,1
+`set alpha mapping on bullet(0).obj,50
+set object effect bullet(0).obj,1
+ttex=loadimage("Media\Map\traser.dds",0)
+texture object bullet(0).obj,0,ttex
+ttex=loadimage("Media\Map\base_N.dds",0)
+texture object bullet(0).obj,1,ttex
+ttex=loadimage("Media\Map\base_S_I.dds",0)
+texture object bullet(0).obj,2,ttex
+exclude object on bullet(0).obj
+teststartspeed=350
+testmaxdist=50
+bullet(0).maxdist=testmaxdist
+bullet(0).startspeed=teststartspeed
+bullet(0).mass=1
+endif
+
+
+`================bullet holes=========================
+type bulletholetype
+obj as word
+maxvc as word
+maxic as word
+tmpvc as word
+tmpic as word
+img as word
+imgn as word
+imgs as word
+maxl as word
+endtype
+
+bullethole as bulletholetype
+
+bullethole.obj=makeobjectcube(99999999)
+enable object zbias bullethole.obj,-2,0
+disable object zwrite bullethole.obj
+set object transparency bullethole.obj,1
+
+set object effect bullethole.obj,6
+bullethole.img=loadimage("gamecore\bulletholes\bulletholes.dds",0)
+texture object bullethole.obj,0,bullethole.img
+bullethole.imgn=loadimage("gamecore\bulletholes\bulletholes_n.dds",0)
+texture object bullethole.obj,1,bullethole.imgn
+`bullethole.imgs=loadimage("gamecore\bulletholes\bulletholes_s.dds",0)
+bullethole.imgs=loadimage("Media\Map\base_S.dds",0)
+texture object bullethole.obj,2,bullethole.imgs
+convert object fvf bullethole.obj,0x002||0x010||0x300
+km_Object_SetMask(bullethole.obj,1,0,0,1)
+
+dim bulletframes(15) as integer
+x=1 : y=1
+tmp=find free object()
+load object "gamecore\bulletholes\bulletholes1x1.x",tmp
+for f=0 to 15
+bulletframes(f)=cloneobject(tmp)
+scale object texture bulletframes(f),0.25,0.25
+texture object bulletframes(f),0,bullethole.img
+lock vertexdata for limb bulletframes(f),0,2
+bullethole.tmpvc=get vertexdata vertex count()
+bullethole.tmpic=get vertexdata vertex count()
+for v=0 to bullethole.tmpvc-1
+tu#=get vertexdata u(v)+((x*0.25)-0.25)
+tv#=get vertexdata v(v)+((y*0.25)-0.25)
+set vertexdata uv v,tu#,tv#
+next v
+inc x
+if x>4 then inc y : x=1
+unlock vertexdata
+exclude object on bulletframes(f)
+next f
+delete object tmp
+
+`lasersightobj=find free object()
+`load object "gamecore\bulletholes\bulletholes1x1.x",lasersightobj
+lasersightobj=makeobjectsphere(5,4)
+scale object lasersightobj,10,10,1
+ttex=loadimage("Media\Map\lasersight.dds",0)
+texture object lasersightobj,0,ttex
+ttex=loadimage("Media\Map\base_N.dds",0)
+texture object lasersightobj,1,ttex
+ttex=loadimage("Media\Map\base_S_I.dds",0)
+texture object lasersightobj,2,ttex
+convert object fvf lasersightobj,0x002||0x010||0x300
+`set alpha mapping on lasersightobj,50
+enable object zbias lasersightobj,-2,0
+disable object zwrite lasersightobj
+`set object transparency lasersightobj,0
+set object effect lasersightobj,1
+km_Object_SetMask(lasersightobj,1,0,0,0)
+
+
+`==================================================================
+return
+
+_weapon_update:
+pointlight_setposition(pointlight,0,-80000,0)
+
+if keypressed(62)=1
+if followwpn=0 then followwpn=1 else followwpn=0
+endif
+
+if keystate(65)=1 then dec testmaxdist
+if keystate(66)=1 then inc testmaxdist
+if keystate(42)=0 and keystate(67)=1 then dec teststartspeed
+if keystate(42)=0 and keystate(68)=1 then inc teststartspeed
+if keystate(42)=1 and keystate(67)=1 then dec airdensity#,0.01
+if keystate(42)=1 and keystate(68)=1 then inc airdensity#,0.01
+
+
+text 400,100,"max dist = "+str$(testmaxdist)
+text 400,110,"start speed = "+str$(teststartspeed)
+
+if followwpn=1
+if mouseclick()=1 then firebutton=1 else firebutton=0
+if mouseclick()=2 then aimbutton=1 else aimbutton=0
+if mouseclick()=3 then aimbutton=1 : firebutton=1
+if keystate(63)=1 then dec wscale,0.1
+if keystate(64)=1 then inc wscale,0.1
+
+if keystate(12)=1 then dec twscale,0.1
+if keystate(13)=1 then inc twscale,0.1
+text 900,10,str$(twscale)
+set object fov weaponobj,twscale
+
+ocpx#=camera position x() : ocpy#=camera position y() : ocpz#=camera position z()
+
+position object weaponobj,camera position x(),camera position y(),camera position z()
+oax#=curveangle(-camera angle x(),oax#,2)
+oay#=curveangle(camera angle y()+180,oay#,2)
+oaz#=curveangle(camera angle z(),oaz#,2)
+rotate object weaponobj,oax#,oay#,oaz#
+
+move object weaponobj,object size z(weaponobj)*0.2
+lpx#=limbpositionx(weaponobj,weapon(1).firespot)
+lpy#=limbpositiony(weaponobj,weapon(1).firespot)
+lpz#=limbpositionz(weaponobj,weapon(1).firespot)
+fdlpx#=limbpositionx(weaponobj,weapon(1).firedir)
+fdlpy#=limbpositiony(weaponobj,weapon(1).firedir)
+fdlpz#=limbpositionz(weaponobj,weapon(1).firedir)
+
+move object weaponobj,-object size z(weaponobj)*0.2
+
+position object positioncube,lpx#,lpy#,lpz#
+point object positioncube,fdlpx#,fdlpy#,fdlpz#
+tax#=object angle x(positioncube)
+tay#=object angle y(positioncube)
+taz#=object angle z(positioncube)
+position_lasersite(lpx#,lpy#,lpz#,tax#,tay#,taz#,testmaxdist)
+
+if firebutton=1 and timer()-firetime#>(60000/250) and GetActiveWindow()<>0
+playweapon(1,73,81,50,50)
+shoot_bullet(lpx#,lpy#,lpz#,tax#,tay#,taz#,teststartspeed,testmaxdist,3.7,1.5)
+tmpsnd=play3dsoundobj(gunfolder$+"fire.wav",weaponobj,10,10000,0)
+if tmpsnd>0 then tfreq=soundonce(lastsoundoid).freq+rndrange(-1000,1000) : soundonce(lastsoundoid).freq=tfreq : set sound speed tmpsnd,tfreq
+pointlight_setposition(pointlight,lpx#,lpy#,lpz#)
+firetime#=timer()
+endif
+
+
+endif
+
+for b=1 to array count(bullet())
+obj=bullet(b).obj : hitobj=0 : isdynamic=0 : hitmass#=0 : tairdens#=airdensity#
+if bullet(b).speed>0
+`start position
+move object obj,object size z(obj)*(-0.5)
+opx#=object position x(obj) : opy#=object position y(obj) : opz#=object position z(obj)
+if opy#<waterlevel then tairdens#=0.1
+move object obj,bullet(b).speed*0.5
+`raycast
+bullethit=sc_raycastgroup(1,opx#,opy#,opz#,object position x(obj),object position y(obj),object position z(obj),0)
+if bullethit>0
+`get data
+cpx#=sc_getstaticcollisionx() : cpy#=sc_getstaticcollisiony() : cpz#=sc_getstaticcollisionz()
+nx#=sc_getcollisionnormalx() : ny#=sc_getcollisionnormaly() : nz#=sc_getcollisionnormalz()
+bx#=sc_getcollisionbouncex() : by#=sc_getcollisionbouncey() : bz#=sc_getcollisionbouncez()
+cd#=sc_getcollisiondistance()
+position object positioncube,cpx#,cpy#,cpz#
+point object positioncube,cpx#+nx#,cpy#+ny#,cpz#+nz#
+move object positioncube,1
+lastbulletn.x=object position x(positioncube)
+lastbulletn.y=object position y(positioncube)
+lastbulletn.z=object position z(positioncube)
+
+position object positioncube,cpx#,cpy#,cpz#
+point object positioncube,cpx#+bx#,cpy#+by#,cpz#+bz#
+move object positioncube,1
+lastbulletb.x=object position x(positioncube)
+lastbulletb.y=object position y(positioncube)
+lastbulletb.z=object position z(positioncube)
+
+bullet(b).bounce=distance(lastbulletn.x,lastbulletn.y,lastbulletn.z,lastbulletb.x,lastbulletb.y,lastbulletb.z)
+
+hitobj=sc_getobjecthit()
+if dyn actor exists(hitobj)
+if dyn is dynamic(hitobj) then hitmass#=dyn get mass(hitobj) : isdynamic=1
+endif
+
+`physics impulse
+if isdynamic=1
+impulse#=bullet(b).mass*500
+tfx#=(object position x(obj)-opx#)*impulse# : tfy#=(object position y(obj)-opy#)*impulse# : tfz#=(object position z(obj)-opz#)*impulse#
+dyn set force mode 3
+dyn add force at pos hitobj,tfx#,tfy#,tfz#,object position x(obj),object position y(obj),object position z(obj)
+dyn wake up hitobj,100 : dyn set force mode 0
+endif
+
+`whine
+if bullet(b).bounce>bullet(b).maxbounce
+bullet(b).maxdist=bullet(b).maxdist*0.5
+else
+bullet(b).speed=0 : opx#=object position x(obj) : opy#=object position y(obj) : opz#=object position z(obj)
+endif
+
+position object obj,cpx#,cpy#,cpz#
+point object obj,object position x(obj)+bx#,object position y(obj)+by#,object position z(obj)+bz#
+rotate object obj,object angle x(obj)+(rndrange(-5000,5000)*0.001),object angle y(obj)+(rndrange(-1500,1500)*0.001),object angle z(obj)
+
+`whine sound
+if bullet(b).speed>0 and bullet(b).bounce>bullet(b).maxbounce
+tmpsnd=play3dsound("audiobank\materials\ricochet1.wav",cpx#,cpy#,cpz#,10,5000,0)
+if tmpsnd>0 then tfreq=soundonce(lastsoundoid).freq-rndrange(soundonce(lastsoundoid).freq*(-0.35),soundonce(lastsoundoid).freq*0.25) : soundonce(lastsoundoid).freq=tfreq : set sound speed tmpsnd,tfreq
+else
+`bullethole on static
+if isdynamic=0
+position object positioncube,cpx#,cpy#,cpz#
+point object positioncube,cpx#+nx#,cpy#+ny#,cpz#+nz#
+move object positioncube,0.25
+roll object right positioncube,rnd(360)
+addbullethole(0,object position x(positioncube),object position y(positioncube),object position z(positioncube),object angle x(positioncube),object angle y(positioncube),object angle z(positioncube),5,5)
+endif
+
+endif
+
+
+endif
+
+`create a trasser
+flyd#=distance(object position x(obj),object position y(obj),object position z(obj),opx#,opy#,opz#)
+bullet(b).dist=bullet(b).dist+abs(flyd#)
+scale object obj,10,10,flyd#*100
+move object obj,object size z(obj)*0.5
+
+`calculate
+scoef#=(((bullet(b).maxdist*100)/(bullet(b).startspeed))*60)*tairdens#
+bullet(b).speed=curvevalue(-bullet(b).startspeed,bullet(b).speed,scoef#)
+curvex#=curveangle(90,object angle x(obj),scoef#)
+xrotate object obj,curvex#
+endif
+
+if bullet(b).speed<=0 or bullet(b).dist>(bullet(b).maxdist*100)
+delete object bullet(b).obj
+array delete element bullet(),b
+endif
+
+next b
+
+return
+
+function position_lasersite(px#,py#,pz#,ax#,ay#,az#,distance#)
+if objectexist(lasersightobj)>0
+position object lasersightobj,px#,py#,pz#
+rotate object lasersightobj,ax#,ay#,az#
+move object lasersightobj,distance#*10
+laserhit=sc_raycastgroup(1,px#,py#,pz#,object position x(lasersightobj),object position y(lasersightobj),object position z(lasersightobj),0)
+if laserhit>0
+cpx#=sc_getstaticcollisionx() : cpy#=sc_getstaticcollisiony() : cpz#=sc_getstaticcollisionz()
+nx#=sc_getcollisionnormalx() : ny#=sc_getcollisionnormaly() : nz#=sc_getcollisionnormalz()
+position object lasersightobj,cpx#,cpy#,cpz#
+point object lasersightobj,cpx#+nx#,cpy#+ny#,cpz#+nz#
+pointlight_setposition(laserlight,cpx#+nx#,cpy#+ny#,cpz#+nz#)
+position object positioncube,cpx#,cpy#,cpz#
+else
+point object lasersightobj,camera position x(),camera position y(),camera position z()
+endif
+move object lasersightobj,10
+pointlight_setposition(laserlight,object position x(lasersightobj),object position y(lasersightobj),object position z(lasersightobj))
+move object lasersightobj,-10
+
+if object in screen(lasersightobj)=1
+scx#=oBJECT SCREEN X(lasersightobj)
+scy#=oBJECT SCREEN y(lasersightobj)
+center text scx#,scy#,"+"
+endif
+endif
+endfunction
+
+function loopweapon(w,startframe,endframe,speed#,interpolation)
+if (w>0 and w<=array count(weapon()))
+if objectexist(weapon(w).obj)=1
+set object speed weapon(w).obj,speed#
+if interpolation>0
+if weapon(w).anim.interpolation=0
+if weapon(w).anim.startframe<>startframe or weapon(w).anim.endframe<>endframe
+stop object weapon(w).obj
+set object interpolation weapon(w).obj,interpolation
+set object frame weapon(w).obj,startframe
+weapon(w).anim.interpolation=100/interpolation
+weapon(w).anim.startframe=startframe
+weapon(w).anim.endframe=endframe
+endif : endif : endif
+if weapon(w).anim.interpolation>0
+dec weapon(w).anim.interpolation
+else
+set object interpolation weapon(w).obj,100 : loop object weapon(w).obj,startframe,endframe : weapon(w).anim.interpolation=0
+endif
+endif : endif
+endfunction
+
+function playweapon(w,startframe,endframe,speed#,interpolation)
+if (w>0 and w<=array count(weapon()))
+if objectexist(weapon(w).obj)=1
+set object speed weapon(w).obj,speed#
+if interpolation>0
+if weapon(w).anim.interpolation=0
+if weapon(w).anim.startframe<>startframe or weapon(w).anim.endframe<>endframe
+stop object weapon(w).obj
+set object interpolation weapon(w).obj,interpolation
+set object frame weapon(w).obj,startframe
+weapon(w).anim.interpolation=100/interpolation
+weapon(w).anim.startframe=startframe
+weapon(w).anim.endframe=endframe
+endif : endif : endif
+if weapon(w).anim.interpolation>0
+dec weapon(w).anim.interpolation
+else
+set object interpolation weapon(w).obj,100 : play object weapon(w).obj,startframe,endframe : weapon(w).anim.interpolation=0
+endif
+endif : endif
+endfunction
+
+function createbullet()
+array insert at bottom bullet()
+b=array count(bullet())
+bullet(b).obj=instanceobject(bullet(0).obj)
+km_Object_SetMask(bullet(b).obj,1,0,0,0)
+`set alpha mapping on bullet(b).obj,50
+set object collision off bullet(b).obj
+`set object transparency bullet(b).obj,1
+set object ambient bullet(b).obj,0
+set object light bullet(b).obj,0
+color object bullet(b).obj,rgb(rnd(255),rnd(255),rnd(255))
+endfunction b
+
+function shoot_bullet(px#,py#,pz#,ax#,ay#,az#,startspeed#,maxdist#,mass#,maxbounce)
+b=createbullet()
+position object bullet(b).obj,px#,py#,pz# : rotate object bullet(b).obj,ax#,ay#,az#
+bullet(b).startspeed=startspeed# : bullet(b).maxdist=maxdist#
+bullet(b).speed=bullet(b).startspeed : bullet(b).bounce=0 : bullet(b).mass=mass# : bullet(b).maxbounce=maxbounce
+endfunction
+
+
+function addbullethole(frame,px#,py#,pz#,rx#,ry#,rz#,sizex#,sizey#)
+`prepare decal
+bobj=bulletframes(frame)
+scale limb bobj,0,sizex#,sizey#,100
+offset limb bobj,0,px#,py#,pz#
+rotate limb bobj,0,rx#,ry#,rz#
+tmpmesh=makemeshfromobject(bobj)
+`if mesh has to many vertices create new limb
+if bullethole.maxvc+bullethole.tmpvc=>65000 or bullethole.maxic+bullethole.tmpic=>65000
+bullethole.maxl=append limb(bullethole.obj,tmpmesh)
+texture limb bullethole.obj,bullethole.maxl,0,bullethole.img
+texture limb bullethole.obj,bullethole.maxl,1,bullethole.imgn
+texture limb bullethole.obj,bullethole.maxl,2,bullethole.imgs
+enable object zbias bullethole.obj,-2,0
+disable object zwrite bullethole.obj
+set object transparency bullethole.obj,1
+bullethole.maxvc=0
+bullethole.maxic=0
+else
+`add decal to mesh
+lock vertexdata for limb bullethole.obj,bullethole.maxl,1
+add mesh to vertexdata tmpmesh
+inc bullethole.maxvc,bullethole.tmpvc
+inc bullethole.maxic,bullethole.tmpic
+unlock vertexdata
+endif
+
+delete mesh tmpmesh
+endfunction
+

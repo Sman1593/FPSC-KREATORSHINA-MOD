@@ -1,0 +1,370 @@
+Rem ***** Included Source File *****
+
+_newentityload_init:
+if newentityload_init=0
+global newentityload_init=1
+gosub _basic_functions_init
+
+type al_lighttype
+number as integer
+room as integer
+position as xyztype
+angle as xyztype
+range as integer
+color as rgbtype
+shadows as integer
+static as integer
+endtype
+
+type entityphysxtype
+mass as integer
+friction as integer
+rest as float
+collision as integer
+material as integer
+kinematic as integer
+colgroup as integer
+endtype
+
+type myentityloadtype
+obj as integer
+mobj as integer
+alobj as integer
+instance as integer
+room as integer
+rooma as integer
+roomb as integer
+portal as integer
+visible as boolean
+canseeplr as float
+alinstance as integer
+`Characters zone
+cframe as float
+tframe as float
+tdiffangle as float
+Bip01_Head as integer
+Bip01_Neck as integer
+Bip01_Spine3 as integer
+Bip01_Spine2 as integer
+Bip01_Spine1 as integer
+`zzzzzzzzzzzzzzz
+static as integer
+mesh$ as string
+texture$ as string
+position as xyztype
+angle as xyztype
+center as xyztype
+scale as integer
+phy as entityphysxtype
+alpha as integer
+endtype
+
+endif
+return
+
+_load_entity:
+file$="temp\segments\dynamic_entitys.bin"
+load_myentityd_array(file$)
+if copyfiles>0 then copyfile(file$,copydirectory$+"Files\"+file$)
+file$="temp\segments\static_entitys.bin"
+load_myentitys_array(file$)
+if copyfiles>0 then copyfile(file$,copydirectory$+"Files\"+file$)
+file$="temp\segments\character.bin"
+load_mycharacter_array(file$)
+if copyfiles>0 then copyfile(file$,copydirectory$+"Files\"+file$)
+file$="temp\segments\light.bin"
+ml=load_mylight_array(file$)
+if copyfiles>0 then copyfile(file$,copydirectory$+"Files\"+file$)
+
+`-----------LIGHTS-----------=====
+if alsetup=1
+for e=0 to array count(mylight())
+`mylight(e).number=PointLight_Create(0)
+`PointLight_SetRange(mylight(e).number,mylight(e).range)
+`PointLight_SetColor(mylight(e).number,mylight(e).color.r,mylight(e).color.g,mylight(e).color.b)
+`PointLight_SetPosition(mylight(e).number,mylight(e).position.x,mylight(e).position.y,mylight(e).position.z)
+`mylight(e).room=get_room(mylight(e).position.x,mylight(e).position.y,mylight(e).position.z)
+`if mylight(e).range>100 then PointLight_SetShadow(mylight(e).number,km_pointlightshadows) else PointLight_SetShadow(mylight(e).number,0)
+`PointLight_SetIntensity(mylight(e).number,km_pointlightintensity)
+`PointLight_SetVisible(mylight(e).number,0)
+
+mylight(e).number=SpotLight_Create(0)
+SpotLight_SetRange(mylight(e).number,mylight(e).range)
+SpotLight_SetColor(mylight(e).number,mylight(e).color.r,mylight(e).color.g,mylight(e).color.b)
+SpotLight_SetPosition(mylight(e).number,mylight(e).position.x,mylight(e).position.y,mylight(e).position.z)
+SpotLight_SetAngle(mylight(e).number,90,0,0,150)
+mylight(e).room=get_room(mylight(e).position.x,mylight(e).position.y,mylight(e).position.z)
+if mylight(e).range>100 then SpotLight_SetShadow(mylight(e).number,km_pointlightshadows) else SpotLight_SetShadow(mylight(e).number,0)
+SpotLight_SetIntensity(mylight(e).number,km_pointlightintensity)
+SpotLight_SetVisible(mylight(e).number,0)
+next e
+endif
+
+`-----------DYNAMIC----------
+for e=0 to array count(myentityd())
+mesh$=myentityd(e).mesh$
+texture$=newformat(myentityd(e).texture$,".dds")
+texturen$=texture_n(texture$)
+textures$=texture_s(texture$)
+
+if myentityd(e).alpha>1 then tinstance=0 else tinstance=1
+obj=loadobject(mesh$,texture$,tinstance,0)
+`obj=find free object()
+`load object mesh$,obj
+
+if objectexist(obj)
+myentityd(e).texture$=texture$
+`if fileexist(mesh$) then makefolders("E:\Serega\water test\Files\"+mesh$) : copy file mesh$,"E:\Serega\water test\Files\"+mesh$
+`if fileexist(texture$) then makefolders("E:\Serega\water test\Files\"+texture$) : copy file texture$,"E:\Serega\water test\Files\"+texture$
+`if fileexist(texturen$) then makefolders("E:\Serega\water test\Files\"+texturen$) : copy file texturen$,"E:\Serega\water test\Files\"+texturen$
+`if fileexist(textures$) then makefolders("E:\Serega\water test\Files\"+textures$) : copy file textures$,"E:\Serega\water test\Files\"+textures$
+
+tmobj=object instance of(obj)
+if tmobj=0 then tmobj=obj
+`myentityd(e).mobj=tmobj
+myentityd(e).obj=obj
+myentityd(e).center.x=object collision center x(obj)
+myentityd(e).center.y=object collision center y(obj)
+myentityd(e).center.z=object collision center z(obj)
+
+ttex=kmloadimage(texture$,0,0)
+texture object tmobj,0,ttex
+ttex=kmloadimage(texturen$,0,1)
+texture object tmobj,1,ttex
+ttex=kmloadimage(textures$,0,2)
+texture object tmobj,2,ttex
+
+if alsetup=1
+if myentityd(e).alpha=0 then set object effect tmobj,1
+if myentityd(e).alpha=1 then set object effect tmobj,4
+if myentityd(e).alpha>1 then set object effect tmobj,7
+endif
+
+scale object obj,myentityd(e).scale,myentityd(e).scale,myentityd(e).scale
+
+if myentityd(e).phy.kinematic=1 then sc_setobject(obj,4,2,1,1)
+sc_setobject(obj,1,2,1,1)
+
+position object obj,myentityd(e).position.x,myentityd(e).position.y,myentityd(e).position.z
+ccx#=object collision center x(tmobj) : ccy#=object collision center y(tmobj) : ccz#=object collision center z(tmobj)
+myentityd(e).room=get_room(myentityd(e).position.x+ccx#,myentityd(e).position.y+ccy#,myentityd(e).position.z+ccz#)
+position object positioncube,myentityd(e).position.x+ccx#,myentityd(e).position.y+ccy#,myentityd(e).position.z+ccz#
+rotate object positioncube,myentityd(e).angle.x,myentityd(e).angle.y,myentityd(e).angle.z
+
+move object positioncube,5
+myentityd(e).rooma=get_room(object position x(positioncube),object position y(positioncube),object position z(positioncube))
+move object positioncube,-10
+myentityd(e).roomb=get_room(object position x(positioncube),object position y(positioncube),object position z(positioncube))
+
+rotate object obj,myentityd(e).angle.x,myentityd(e).angle.y,myentityd(e).angle.z
+
+if myentityd(e).phy.kinematic=0 then dynamix_setup(obj,mesh$,myentityd(e).phy.collision,myentityd(e).phy.mass,myentityd(e).phy.friction,myentityd(e).phy.rest,myentityd(e).phy.kinematic)
+if myentityd(e).phy.kinematic>0 then myentityd(e).portal=collidewithportalwindow(obj)
+
+if alsetup=1
+if myentityd(e).alpha>1
+tlobj=AlphaObject_Add(obj)
+myentityd(e).alobj=tlobj
+AlphaObject_SetDynamic(tlobj,1)
+AlphaObject_SetMask(tlobj,1,1)
+AlphaObject_SetVisible(myentityd(e).alobj,0)
+else
+tlobj=Object_Add(obj)
+myentityd(e).alobj=tlobj
+`Object_SetOccluder(tlobj,obj)
+Object_SetDynamic(tlobj,1)
+if objectsize(obj)>25
+Object_SetMask(tlobj,1,1,0,0)
+else
+Object_SetMask(tlobj,1,0,0,0)
+endif
+Object_SetDrawDistance(tlobj,120)
+Object_SetVisible(myentityd(e).alobj,0)
+endif
+endif
+
+endif
+
+next e
+
+`-----------CHARACTERS----------
+for e=0 to array count(mycharacter())
+obj=loadobject(mycharacter(e).mesh$,mycharacter(e).texture$,0,0)
+`obj=find free object()
+`load object mycharacter(e).mesh$,obj
+
+
+if objectexist(obj)
+texture$=newformat(mycharacter(e).texture$,".dds") : mycharacter(e).texture$=texture$
+texturen$=texture_n(texture$)
+textures$=texture_s(texture$)
+
+`if fileexist(mycharacter(e).mesh$) then makefolders("E:\Serega\water test\Files\"+mycharacter(e).mesh$) : copy file mycharacter(e).mesh$,"E:\Serega\water test\Files\"+mycharacter(e).mesh$
+`if fileexist(mycharacter(e).texture$) then makefolders("E:\Serega\water test\Files\"+mycharacter(e).texture$) : copy file mycharacter(e).texture$,"E:\Serega\water test\Files\"+mycharacter(e).texture$
+
+mycharacter(e).tframe=total object frames(obj)
+mycharacter(e).cframe=rnd(total object frames(obj))
+mobj=makeobjectbox(object size x(obj),object size y(obj),object size z(obj))
+
+`mobj=instanceobject(obj)
+
+`hide object mobj
+mycharacter(e).mobj=mobj
+mycharacter(e).obj=obj
+
+ttex=kmloadimage(texture$,0,0)
+texture object obj,0,ttex
+ttex=kmloadimage(texturen$,0,1)
+texture object obj,1,ttex
+ttex=kmloadimage(textures$,0,2)
+texture object obj,2,ttex
+
+set object effect mobj,3
+set object effect obj,2
+position object obj,mycharacter(e).position.x,mycharacter(e).position.y,mycharacter(e).position.z
+rotate object obj,mycharacter(e).angle.x,mycharacter(e).angle.y+180,mycharacter(e).angle.z
+
+ccx#=object collision center x(obj) : ccy#=object collision center y(obj) : ccz#=object collision center z(obj)
+offset limb mobj,0,-ccx#,-ccy#,-ccz#
+mycharacter(e).room=get_room(mycharacter(e).position.x+ccx#,mycharacter(e).position.y+ccy#,mycharacter(e).position.z+ccz#)
+set object interpolation obj,100 : loop object obj
+
+`rotate limb obj,1,0,180,0
+scale object obj,mycharacter(e).scale,mycharacter(e).scale,mycharacter(e).scale
+scale object mobj,mycharacter(e).scale,mycharacter(e).scale,mycharacter(e).scale
+`disable object zdepth obj
+
+makecharacter(obj,0,0)
+
+if alsetup=1
+mycharacter(e).alobj=Object_Add(mobj)
+`Object_SetDynamic(mycharacter(e).alobj,1)
+Object_SetMask(mycharacter(e).alobj,1,1,1,1)
+Object_SetVisible(mycharacter(e).alobj,0)
+km_Object_SetMask(obj,1,1,1,0)
+`AL_Object(mycharacter(e).alobj).Object=obj
+endif
+
+endif
+next e
+
+return
+
+function findentobj(obj)
+for e=0 to array count(myentityd())
+if myentityd(e).obj=obj then exitfunction e
+next e
+endfunction 0
+
+`--=====LOAD=-=========---
+
+function load_myentitys_array(file$)
+gosub _newentityload_init
+if fileexist(file$)=1
+open to read 1,file$
+read file 1,tcount
+undim myentitys()
+dim myentitys(tcount) as myentityloadtype
+for z=0 to tcount
+read file 1,myentitys(z).static
+read string 1,myentitys(z).mesh$
+read string 1,myentitys(z).texture$
+read float 1,myentitys(z).position.x
+read float 1,myentitys(z).position.y
+read float 1,myentitys(z).position.z
+read float 1,myentitys(z).angle.x
+read float 1,myentitys(z).angle.y
+read float 1,myentitys(z).angle.z
+read file 1,myentitys(z).scale
+read file 1,myentitys(z).alpha
+read file 1,myentitys(z).phy.mass
+read file 1,myentitys(z).phy.friction
+read file 1,myentitys(z).phy.collision
+read file 1,myentitys(z).phy.material
+read file 1,myentitys(z).phy.kinematic
+read float 1,myentitys(z).phy.rest
+next z
+close file 1
+endif
+endfunction z
+
+function load_mylight_array(file$)
+gosub _newentityload_init
+if fileexist(file$)=1
+open to read 1,file$
+read file 1,tcount
+undim mylight()
+dim mylight(tcount) as al_lighttype
+for cl=0 to tcount
+read file 1,mylight(cl).range
+read byte 1,mylight(cl).color.r
+read byte 1,mylight(cl).color.g
+read byte 1,mylight(cl).color.b
+read float 1,mylight(cl).position.x
+read float 1,mylight(cl).position.y
+read float 1,mylight(cl).position.z
+read file 1,mylight(cl).static
+next cl
+close file 1
+endif
+endfunction cl
+
+function load_mycharacter_array(file$)
+gosub _newentityload_init
+if fileexist(file$)=1
+open to read 1,file$
+read file 1,tcount
+undim mycharacter()
+dim mycharacter(tcount) as myentityloadtype
+for z=0 to tcount
+read file 1,mycharacter(z).static
+read string 1,mycharacter(z).mesh$
+read string 1,mycharacter(z).texture$
+read float 1,mycharacter(z).position.x
+read float 1,mycharacter(z).position.y
+read float 1,mycharacter(z).position.z
+read float 1,mycharacter(z).angle.x
+read float 1,mycharacter(z).angle.y
+read float 1,mycharacter(z).angle.z
+read file 1,mycharacter(z).scale
+read file 1,mycharacter(z).alpha
+read file 1,mycharacter(z).phy.mass
+read file 1,mycharacter(z).phy.friction
+read file 1,mycharacter(z).phy.collision
+read file 1,mycharacter(z).phy.material
+read file 1,mycharacter(z).phy.kinematic
+read float 1,mycharacter(z).phy.rest
+next z
+close file 1
+endif
+endfunction z
+
+function load_myentityd_array(file$)
+gosub _newentityload_init
+if fileexist(file$)=1
+open to read 1,file$
+read file 1,tcount
+undim myentityd()
+dim myentityd(tcount) as myentityloadtype
+for z=0 to tcount
+read file 1,myentityd(z).static
+read string 1,myentityd(z).mesh$
+read string 1,myentityd(z).texture$
+read float 1,myentityd(z).position.x
+read float 1,myentityd(z).position.y
+read float 1,myentityd(z).position.z
+read float 1,myentityd(z).angle.x
+read float 1,myentityd(z).angle.y
+read float 1,myentityd(z).angle.z
+read file 1,myentityd(z).scale
+read file 1,myentityd(z).alpha
+read file 1,myentityd(z).phy.mass
+read file 1,myentityd(z).phy.friction
+read file 1,myentityd(z).phy.collision
+read file 1,myentityd(z).phy.material
+read file 1,myentityd(z).phy.kinematic
+read float 1,myentityd(z).phy.rest
+next z
+close file 1
+endif
+endfunction z

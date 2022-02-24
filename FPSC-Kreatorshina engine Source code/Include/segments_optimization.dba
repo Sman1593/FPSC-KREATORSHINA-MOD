@@ -1,0 +1,1759 @@
+Rem ***** Included Source File *****
+
+_segments_optimized_init:
+if segments_optimized_init=0
+dim oseg(0) as optimizedseg
+segments_optimized_init=1
+dim segmentdata(0) as segmenttype
+global maxgroup
+
+type portalconnectiontype
+a as integer
+b as integer
+g as integer
+endtype
+
+dim portallinks(0) as portalconnectiontype
+
+endif
+return
+
+function optimizestatic()
+gosub _segments_optimized_init
+createportals()
+
+saveallsegments()
+
+endfunction
+
+function saveallsegments()
+segmax=array count(oseg())
+dim temptextures(0) as string
+
+`--------------------------atlas---------------------
+for fseg=0 to array count(fss())
+obj=fss(fseg).obj
+if fss(fseg).partmode=0 and objectexist(obj)>0
+fss(fseg).texture$=addtexturetoatlas(fss(fseg).texture$)
+endif
+next fseg
+
+`clear console
+
+`-------Perfom multi treaded static optimization
+beginstaticoptimization()
+for z=0 to array count(myentitys())
+addfiletooptimizestatic(myentitys(z).mesh$)
+next z
+executestaticoptimization()
+`-------------------------------------------------
+gosub _segments_optimized_init
+
+for z=0 to array count(myentitys())
+fileobj$=myentitys(z).mesh$
+scale=myentitys(z).scale
+ttexture$=myentitys(z).texture$
+sfdbo$=newformat(fileobj$,".static.dbo")
+if file exist(sfdbo$)=1 then fileobj$=sfdbo$
+myentitys(z).mesh$=fileobj$
+
+ce=getsegmenttype(fileobj$,ttexture$,0,0,0)
+
+if segmentdata(ce).meshid=0
+obj=find free object()
+myentitys(z).obj=obj
+
+if file exist(fileobj$)
+if file size(fileobj$)>76
+load object fileobj$,obj
+endif
+endif
+
+if objectexist(obj)
+hide object obj
+segmentdata(ce).meshid=obj
+
+if ttexture$=""
+maxl=get limb count(obj)
+for l=0 to maxl
+if limb exist(obj,l)
+if limb has mesh(obj,l)
+ltname$=limb texture name(obj,l)
+if ltname$<>""
+ltname$=getfilename(ltname$)
+folder$=getfolder(fileobj$)
+ttexture$=folder$+ltname$
+print console ttexture$
+print console chr$(10)
+ttexture$=addtexturetoatlas(ttexture$)
+timg=loadimage(ttexture$,0)
+texture limb obj,l,0,timg
+endif
+endif
+endif
+next l
+else
+ttexture$=addtexturetoatlas(ttexture$)
+entityelement(e).eleprof.texd$=ttexture$
+print console ttexture$
+print console chr$(10)
+timg=loadimage(ttexture$,0)
+texture object obj,0,timg
+
+endif
+endif
+endif
+
+next z
+
+build_atlas_texture("temp\segments\universe")
+read_atlas_file("temp\segments\universe.tai")
+read_atlas_file("temp\segments\universe_n.tai")
+read_atlas_file("temp\segments\universe_s.tai")
+
+`--------------------------atlas---------------------
+`clear console
+
+for m=1 to array count(segmentdata())
+obj=segmentdata(m).meshid
+if objectexist(obj)
+maxl=get limb count(obj)
+for l=0 to maxl
+if limb exist(obj,l)=1
+ltname$=limb texture name(obj,l)
+
+if file exist(ltname$)=1
+prepare_to_atexture(obj,l)
+set_limb_atexture(obj,l,0,ltname$)
+endif
+
+endif
+next l
+timg=loadimage("temp\segments\universe0.dds",0)
+texture object obj,0,timg
+timg=loadimage("temp\segments\universe_n0.dds",0)
+texture object obj,1,timg
+timg=loadimage("temp\segments\universe_s0.dds",0)
+texture object obj,2,timg
+
+endif
+next m
+
+dim uniobj(maxgroup)
+
+for room=2 to maxgroup
+
+for fseg=0 to array count(fss())
+obj=fss(fseg).obj
+texture$=fss(fseg).texture$
+
+tlpx#=fss(fseg).px
+tlpy#=fss(fseg).py
+tlpz#=fss(fseg).pz
+tlax#=fss(fseg).rx
+tlay#=fss(fseg).ry
+tlaz#=fss(fseg).rz
+
+ if objectexist(obj)>0
+if object visible(obj)>0
+
+tccx#=object collision center x(obj)
+tccy#=object collision center y(obj)
+tccz#=object collision center z(obj)
+pinzx#=tlpx#+tccx#
+pinzy#=tlpy#+tccy#
+pinzz#=tlpz#+tccz#
+
+if fss(fseg).isfloor>0
+if tlax#<>0 then dec pinzy#,10
+endif
+
+if point in zone group(pinzx#,pinzy#,pinzz#,room)>0
+`l=findlimbwithmesh(obj)
+`set_limb_atexture(obj,l,texture$)
+
+maxl=get limb count(obj)
+for l=0 to maxl
+
+if file exist(texture$)=1
+prepare_to_atexture(obj,l)
+set_limb_atexture(obj,l,0,texture$)
+endif
+
+next l
+if fss(fseg).transparency>0 then alpha=1 else alpha=0
+uniobj(room)=optimizemeshalpha(obj,uniobj(room),alpha)
+hide object obj
+endif
+
+endif
+ endif
+next fseg
+`clear console
+
+`INSERT YOUR CODE HERE
+
+for z=0 to array count(myentitys())
+if myentitys(z).mesh$<>""
+`m=findsamemesh(myentitys(z).mesh$)
+m=getsegmenttype(myentitys(z).mesh$,myentitys(z).texture$,0,0,0)
+if m>0
+orobj=segmentdata(m).meshid
+rotate object orobj,myentitys(z).angle.x,myentitys(z).angle.y,myentitys(z).angle.z
+pinzx#=myentitys(z).position.x+object collision center x(orobj)
+pinzy#=myentitys(z).position.y+object collision center y(orobj)+5
+pinzz#=myentitys(z).position.z+object collision center z(orobj)
+tcube=makeobjectcube(10)
+position object tcube,pinzx#,pinzy#,pinzz#
+if point in zone group(pinzx#,pinzy#,pinzz#,room)>0
+obj=cloneobject(orobj)
+myentitys(z).obj=obj
+
+if objectexist(obj)
+position object obj,myentitys(z).position.x,myentitys(z).position.y,myentitys(z).position.z
+rotate object obj,myentitys(z).angle.x,myentitys(z).angle.y,myentitys(z).angle.z
+scale object obj,myentitys(z).scale,myentitys(z).scale,myentitys(z).scale
+if myentitys(z).alpha>0 then alpha=1 else alpha=0
+uniobj(room)=optimizemeshalpha(obj,uniobj(room),alpha)
+delete object obj
+endif
+endif
+
+endif
+endif
+next z
+
+next room
+
+outdoor=0
+for p=1 to array count(portalzones())
+temproom=0
+if portalzones(p).room=0
+
+for fseg=0 to array count(fss())
+obj=fss(fseg).obj
+texture$=fss(fseg).texture$
+
+tlpx#=fss(fseg).px
+tlpy#=fss(fseg).py
+tlpz#=fss(fseg).pz
+tlax#=fss(fseg).rx
+tlay#=fss(fseg).ry
+tlaz#=fss(fseg).rz
+
+    if objectexist(obj)>0
+   if object visible(obj)>0
+
+tccx#=object collision center x(obj)
+tccy#=object collision center y(obj)
+tccz#=object collision center z(obj)
+pinzx#=tlpx#+tccx#
+pinzy#=tlpy#+tccy#
+pinzz#=tlpz#+tccz#
+
+if fss(fseg).isfloor>0
+if tlax#<>0 then dec pinzy#,10
+endif
+
+if point in zone(pinzx#,pinzy#,pinzz#,p)>0
+`l=findlimbwithmesh(obj)
+`set_limb_atexture(obj,l,texture$)
+
+maxl=get limb count(obj)
+for l=0 to maxl
+
+if file exist(texture$)=1
+prepare_to_atexture(obj,l)
+set_limb_atexture(obj,l,0,texture$)
+endif
+
+next l
+
+if fss(fseg).transparency>0 then alpha=1 else alpha=0
+temproom=optimizemeshalpha(obj,temproom,alpha)
+hide object obj
+
+ endif
+
+  endif
+    endif
+next fseg
+
+for z=0 to array count(myentitys())
+if myentitys(z).mesh$<>""
+m=getsegmenttype(myentitys(z).mesh$,myentitys(z).texture$,0,0,0)
+if m>0
+orobj=segmentdata(m).meshid
+rotate object orobj,myentitys(z).angle.x,myentitys(z).angle.y,myentitys(z).angle.z
+pinzx#=myentitys(z).position.x+object collision center x(orobj)
+pinzy#=myentitys(z).position.y+object collision center y(orobj)+5
+pinzz#=myentitys(z).position.z+object collision center z(orobj)
+tcube=makeobjectcube(10)
+position object tcube,pinzx#,pinzy#,pinzz#
+if point in zone(pinzx#,pinzy#,pinzz#,p)>0
+obj=cloneobject(orobj)
+myentitys(z).obj=obj
+
+if objectexist(obj)
+position object obj,myentitys(z).position.x,myentitys(z).position.y,myentitys(z).position.z
+rotate object obj,myentitys(z).angle.x,myentitys(z).angle.y,myentitys(z).angle.z
+scale object obj,myentitys(z).scale,myentitys(z).scale,myentitys(z).scale
+if myentitys(z).alpha>0 then alpha=1 else alpha=0
+temproom=optimizemeshalpha(obj,temproom,alpha)
+delete object obj
+
+endif
+endif
+
+endif
+endif
+next z
+
+if temproom>0
+array insert at bottom uniobj()
+room=array count(uniobj())
+uniobj(room)=temproom
+endif
+
+portalzones(p).room=room
+place zone in group p,room
+inc maxgroup
+
+endif
+
+next p
+`
+
+for fseg=0 to array count(fss())
+obj=fss(fseg).obj
+texture$=fss(fseg).texture$
+
+tlpx#=fss(fseg).px
+tlpy#=fss(fseg).py
+tlpz#=fss(fseg).pz
+tlax#=fss(fseg).rx
+tlay#=fss(fseg).ry
+tlaz#=fss(fseg).rz
+
+    if objectexist(obj)>0
+   if object visible(obj)>0
+
+tccx#=object collision center x(obj)
+tccy#=object collision center y(obj)
+tccz#=object collision center z(obj)
+
+position object positioncube,0,0,0
+point object positioncube,tccx#,tccy#,tccz#
+position object positioncube,tlpx#,tlpy#,tlpz#
+move object positioncube,10
+rotate object positioncube,tlax#,tlay#,tlaz#
+move object positioncube,1
+pinzx#=object position x(positioncube)
+pinzy#=object position y(positioncube)
+pinzz#=object position z(positioncube)
+
+maxl=get limb count(obj)
+for l=0 to maxl
+
+if file exist(texture$)=1
+prepare_to_atexture(obj,l)
+set_limb_atexture(obj,l,0,texture$)
+endif
+
+next l
+
+if fss(fseg).transparency>0 then alpha=1 else alpha=0
+temproom=optimizemeshalpha(obj,uniobj(2),alpha)
+hide object obj
+
+  endif
+    endif
+next fseg
+
+
+for room=0 to array count(uniobj())
+if uniobj(room)>0
+timg=loadimage("temp\segments\universe0.dds",0)
+texture object uniobj(room),0,timg
+timg=loadimage("temp\segments\universe_n0.dds",0)
+texture object uniobj(room),1,timg
+timg=loadimage("temp\segments\universe_s0.dds",0)
+texture object uniobj(room),2,timg
+
+saveobject("temp\segments\room_"+str$(room)+".dbo",uniobj(room))
+sc_setupComplexobject uniobj(room),8,2
+
+endif
+next room
+
+
+for p=1 to array count(portalzones())
+place zone in group p,1
+next p
+
+
+createportalwindow()
+gosub _calculate_portalvisibility
+
+saveportals("temp\segments\portalzones.bin")
+saveportalwindows("temp\segments\portals.bin")
+
+endfunction
+
+function colideportals(w,sw)
+obja=portalwindow(w).obj
+objb=portalwindow(sw).obj
+
+for trx=-1 to 1
+for try=-1 to 1
+for strx=-1 to 1
+for stry=-1 to 1
+
+position object positioncube,portalwindow(w).position.x,portalwindow(w).position.y,portalwindow(w).position.z
+rotate object positioncube,portalwindow(w).angle.x,portalwindow(w).angle.y,portalwindow(w).angle.z
+move object right positioncube,(object size x(portalwindow(w).obj)-10)*(trx*0.5)
+move object up positioncube,(object size y(portalwindow(w).obj)-10)*(try*0.5)
+tpx1#=object position x(positioncube) : tpy1#=object position y(positioncube) : tpz1#=object position z(positioncube)
+
+position object positioncube,portalwindow(sw).position.x,portalwindow(sw).position.y,portalwindow(sw).position.z
+rotate object positioncube,portalwindow(sw).angle.x,portalwindow(sw).angle.y,portalwindow(sw).angle.z
+move object right positioncube,(object size x(portalwindow(sw).obj)-10)*(strx*0.5)
+move object up positioncube,(object size y(portalwindow(sw).obj)-10)*(stry*0.5)
+tpx2#=object position x(positioncube) : tpy2#=object position y(positioncube) : tpz2#=object position z(positioncube)
+
+raywa=sc_raycastgroup(8,tpx1#,tpy1#,tpz1#,tpx2#,tpy2#,tpz2#,0)
+if raywa=0 then exitfunction 1
+
+next stry
+next strx
+next try
+next trx
+
+endfunction 0
+
+_calculate_portalvisibility:
+
+clear console
+for w=1 to array count(portalwindow())
+talpha=0
+obj=portalwindow(w).obj
+position object obj,portalwindow(w).position.x,portalwindow(w).position.y,portalwindow(w).position.z
+rotate object obj,portalwindow(w).angle.x,portalwindow(w).angle.y,portalwindow(w).angle.z
+move object obj,50
+px1#=object position x(obj) : py1#=object position y(obj) : pz1#=object position z(obj)
+move object obj,-100
+px2#=object position x(obj) : py2#=object position y(obj) : pz2#=object position z(obj)
+position object obj,portalwindow(w).position.x,portalwindow(w).position.y,portalwindow(w).position.z
+rotate object obj,portalwindow(w).angle.x,portalwindow(w).angle.y,portalwindow(w).angle.z
+roomobj=sc_raycastgroup(8,px1#,py1#,pz1#,px2#,py2#,pz2#,0)
+if roomobj>0
+maxl=get limb count(roomobj)
+for l=0 to maxl
+limbname$=limb name$(roomobj,l)
+if left$(limbname$,5)="alpha" then talpha=1 : exit
+next l
+if talpha=0 then array delete element portalwindow(),w : dec w
+endif
+next w
+
+pfile$="temp\segments\portallinks.bin"
+if file exist(pfile$)=1 then delete file pfile$
+dim portalwindowlinks(0) as abtype
+for w=1 to array count(portalwindow())
+for sw=1 to array count(portalwindow())
+if w<>sw
+obja=portalwindow(w).obj
+objb=portalwindow(sw).obj
+if colideportals(w,sw)
+
+array insert at bottom portalwindowlinks()
+nl=array count(portalwindowlinks())
+portalwindowlinks(nl).a=w
+portalwindowlinks(nl).b=sw
+
+`print console chr$(10)
+endif
+endif
+next sw
+next w
+
+file=find free file()
+open to write file,pfile$
+maxlinks=array count(portalwindowlinks())
+write file file,maxlinks
+for nl=0 to array count(portalwindowlinks())
+write file file,portalwindowlinks(nl).a
+write file file,portalwindowlinks(nl).b
+next nl
+close file file
+
+return
+
+function createportalwindow()
+dim portalwindow(0) as portalwindowtype
+for fseg=0 to array count(fss())
+obj=fss(fseg).obj
+if fss(fseg).partmode=1
+if object exist(obj)=1
+sfseg=findsamesegment(fseg)
+if sfseg=0
+array insert at bottom portalwindow()
+pw=array count(portalwindow())
+px#=object position x(obj)+object collision center x(obj)
+py#=object position y(obj)+object collision center y(obj)
+pz#=object position z(obj)+object collision center z(obj)
+portalwindow(pw).obj=obj
+portalwindow(pw).position.x=px#
+portalwindow(pw).position.y=py#
+portalwindow(pw).position.z=pz#
+portalwindow(pw).angle.x=fss(fseg).rx
+portalwindow(pw).angle.y=fss(fseg).ry
+portalwindow(pw).angle.z=fss(fseg).rz
+portalwindow(pw).size.x=object size x(obj)
+portalwindow(pw).size.y=object size y(obj)
+portalwindow(pw).size.z=object size z(obj)
+//////////////////////////////get group A/////////////////////
+move object obj,50
+px#=object position x(obj)+object collision center x(obj)
+py#=object position y(obj)+object collision center y(obj)
+pz#=object position z(obj)+object collision center z(obj)
+portalwindow(pw).group.a=get_room(px#,py#,pz#)
+move object obj,-100
+//////////////////////////////get group B/////////////////////////
+px#=object position x(obj)+object collision center x(obj)
+py#=object position y(obj)+object collision center y(obj)
+pz#=object position z(obj)+object collision center z(obj)
+portalwindow(pw).group.b=get_room(px#,py#,pz#)
+move object obj,50
+portalwindow(pw).visible=1
+show object obj
+`ghost object on obj,2
+color object obj,rgb(rnd(255),rnd(255),rnd(255))
+set object wireframe obj,1
+endif
+endif
+endif
+next fseg
+
+`portallinks(0)
+
+endfunction
+
+function get_room(px#,py#,pz#)
+z=POINT IN ZONE GROUP(px#,py#,pz#,1)
+if z<=array count(portalzones())
+if z>0 then group=portalzones(z).room
+endif
+endfunction group
+
+function findsamesegment(fseg)
+for sf=0 to fseg-1
+if fss(sf).partmode=1 and fss(fseg).rx=fss(sf).rx and fss(fseg).ry=fss(sf).ry and fss(fseg).rz=fss(sf).rz and fss(fseg).px=fss(sf).px and fss(fseg).py=fss(sf).py and fss(fseg).pz=fss(sf).pz then exitfunction sf
+next sf
+endfunction 0
+
+function optimizedrawseg(tempstatic,tempocc,kmtexture$,fileobj$)
+if tempstatic>0
+array insert at bottom oseg()
+cseg=array count(oseg())
+
+if tempocc>0
+ccx#=object collision center x(tempocc) : ccy#=object collision center y(tempocc) : ccz#=object collision center z(tempocc)
+osx#=object size x(tempocc,1) : osy#=object size y(tempocc,1) : osz#=object size z(tempocc,1)
+`kmtexture$=limb texture name(tempocc,0)
+mlmb=get limb count(tempocc)
+for lmb=0 to mlmb
+offset limb tempocc,lmb,(limb offset x(tempocc,lmb)-ccx#),(limb offset y(tempocc,lmb)-ccy#),(limb offset z(tempocc,lmb)-ccz#),1
+next lmb
+scale object tempocc,100,101,100
+updatemesh(tempocc,0)
+endif
+
+ccx#=object collision center x(tempstatic) : ccy#=object collision center y(tempstatic) : ccz#=object collision center z(tempstatic)
+osx#=object size x(tempstatic,1) : osy#=object size y(tempstatic,1) : osz#=object size z(tempstatic,1)
+`kmtexture$=limb texture name(tempstatic,0)
+mlmb=get limb count(tempstatic)
+for lmb=0 to mlmb
+offset limb tempstatic,lmb,(limb offset x(tempstatic,lmb)-ccx#),(limb offset y(tempstatic,lmb)-ccy#),(limb offset z(tempstatic,lmb)-ccz#),1
+next lmb
+updatemesh(tempstatic,0)
+
+oseg(cseg).saveobj=0
+oseg(cseg).obj=tempstatic
+oseg(cseg).occobj=tempocc
+oseg(cseg).px=ccx#
+oseg(cseg).py=ccy#
+oseg(cseg).pz=ccz#
+oseg(cseg).texture$=kmtexture$
+oseg(cseg).mesh$=fileobj$
+
+position object tempstatic,ccx#,ccy#,ccz#
+hide object tempstatic
+if tempocc>0
+position object tempocc,ccx#,ccy#,ccz#
+hide object tempocc
+endif
+`timg=loadimage(kmtexture$,0)
+`texture object tempstatic,0,timg
+endif
+endfunction cseg
+
+function findportalzone(obj)
+for cprt=0 to array count(portalzones())
+if portalzones(cprt).obj=obj then exitfunction cprt
+next cprt
+endfunction 0
+
+function portalfindmaxsx(lay,x,y,tmaxx,tmaxy)
+sxcolide=0 : maxsx=tmaxx
+for sx=x to tmaxx
+if point in zone group((sx*100)+50,(lay*100)+50,(y*-100)-50,1)=0
+if vseg(lay,sx,y).vis.wr>0 or vseg(lay,sx,y).vis.owr>0 then sxcolide=1
+if arraynotout(lay,sx+1,y)>0
+if vseg(lay,sx+1,y).vis.wl>0 or vseg(lay,sx+1,y).vis.owl>0 then sxcolide=1
+endif
+
+if arraynotout(lay,sx+1,y)>0
+owf=vseg(lay,sx,y).vis.wf+vseg(lay,sx,y).vis.owf : if owf>1 then owf=1
+nwf=vseg(lay,sx+1,y).vis.wf+vseg(lay,sx+1,y).vis.owf : if nwf>1 then nwf=1
+owb=vseg(lay,sx,y).vis.wb+vseg(lay,sx,y).vis.owb : if owb>1 then owb=1
+nwb=vseg(lay,sx+1,y).vis.wb+vseg(lay,sx+1,y).vis.owb : if nwb>1 then nwb=1
+if owf<>nwf and owb<>nwb then sxcolide=1
+endif
+
+if arraynotout(lay+1,sx+1,y)>0
+of=vseg(lay+1,sx,y).vis.f : if of>1 then of=1
+nf=vseg(lay+1,sx+1,y).vis.f : if nf>1 then nf=1
+if of<>nf then sxcolide=1
+endif
+
+if sxcolide=1 then maxsx=min(maxsx,sx) : exit
+else
+maxsx=min(maxsx,sx-1) : exit
+endif
+next sx
+endfunction maxsx
+
+function portalfindmaxsy(lay,x,y,tmaxx,tmaxy)
+maxsy=tmaxy
+for sx=x to tmaxx
+sycolide=0
+for sy=y to tmaxy
+if point in zone group((sx*100)+50,(lay*100)+50,(sy*-100)-50,1)=0
+if vseg(lay,sx,sy).vis.wb>0 or vseg(lay,sx,sy).vis.owb>0 then sycolide=1
+if arraynotout(lay,sx,sy+1)>0
+if vseg(lay,sx,sy+1).vis.wf>0 or vseg(lay,sx,sy+1).vis.owf>0 then sycolide=1
+endif
+
+if arraynotout(lay,sx,sy+1)>0
+wl=vseg(lay,sx,sy).vis.wl+vseg(lay,sx,sy).vis.owl : if wl>1 then wl=1
+nwl=vseg(lay,sx,sy+1).vis.wl+vseg(lay,sx,sy+1).vis.owl : if nwl>1 then nwl=1
+if wl<>nwl then sycolide=1
+else
+if vseg(lay,sx,sy).vis.wl>0 and vseg(lay,sx,sy).vis.wr>0 then sycolide=1
+endif
+
+if arraynotout(lay+1,sx,sy+1)>0
+of=vseg(lay+1,sx,sy).vis.f : if of>1 then of=1
+nf=vseg(lay+1,sx,sy+1).vis.f : if nf>1 then nf=1
+if of<>nf then sycolide=1
+endif
+
+if sycolide=1 then maxsy=min(maxsy,sy) : exit
+else
+maxsy=min(maxsy,sy-1) : exit
+endif
+next sy
+next sx
+endfunction maxsy
+
+function portalfindmaxsl(lay,x,y,tmaxx,tmaxy,tlaymax)
+maxsl=tlaymax
+for sx=x to tmaxx
+for sy=y to tmaxy
+for sl=lay to tlaymax
+if point in zone group((sx*100)+50,(sl*100)+50,(sy*-100)-50,1)=0
+
+if sl>lay
+if vseg(sl,sx,sy).vis.f>0 then maxsl=min(maxsl,sl) : exit
+endif
+else
+maxsl=min(maxsl,sl-1) : exit
+endif
+next sl
+next sy
+next sx
+endfunction maxsl
+
+function createportals()
+dim portalzones(0) as portalzonetype
+if maxy<40 then realmaxy=40
+if maxx<40 then realmaxx=40
+lmax=20
+for lay=0 to lmax-1
+for y=0 to realmaxy
+for x=0 to realmaxx
+if point in zone group((x*100)+50,(lay*100)+50,(y*-100)-50,1)=0
+
+maxsx=portalfindmaxsx(lay,x,y,realmaxx,realmaxy)
+maxsy=portalfindmaxsy(lay,x,y,maxsx,realmaxy)
+maxsl=portalfindmaxsl(lay,x,y,maxsx,maxsy,lmax)
+
+array insert at bottom portalzones()
+cprt=array count(portalzones())
+`PRINT CONSOLE "[" : PRINT CONSOLE cprt : PRINT CONSOLE "]"
+portalzones(cprt).x1=(x*100)
+portalzones(cprt).y1=(lay*100)
+portalzones(cprt).z1=(y*-100)
+
+portalzones(cprt).x2=((maxsx+1)*100)
+portalzones(cprt).y2=(maxsl*100)
+portalzones(cprt).z2=((maxsy+1)*-100)
+
+portalzones(cprt).sx=portalzones(cprt).x2-portalzones(cprt).x1
+portalzones(cprt).sy=portalzones(cprt).y2-portalzones(cprt).y1
+portalzones(cprt).sz=abs(portalzones(cprt).z2)-abs(portalzones(cprt).z1)
+
+portalzones(cprt).px=portalzones(cprt).x1+(portalzones(cprt).sx*0.5)
+portalzones(cprt).py=portalzones(cprt).y1+(portalzones(cprt).sy*0.5)
+portalzones(cprt).pz=portalzones(cprt).z1-(portalzones(cprt).sz*0.5)
+
+tportal=makeobjectbox(portalzones(cprt).sx,portalzones(cprt).sy,-portalzones(cprt).sz)
+portalzones(cprt).obj=tportal
+position object tportal,portalzones(cprt).px,portalzones(cprt).py,portalzones(cprt).pz
+color object tportal,rgb(rnd(255),rnd(255),rnd(255))
+ghost object on tportal,2
+`hide object tportal
+
+SET ZONE cprt,portalzones(cprt).x1,portalzones(cprt).y1,portalzones(cprt).z1,portalzones(cprt).x2,portalzones(cprt).y2,portalzones(cprt).z2
+place zone in group cprt,1
+endif
+next x
+next y
+next lay
+
+`-------------------------------------ZONE GROUP```````````````````````````
+`clear console
+dim portalconnection(0) as portalconnectiontype
+for p=1 to array count(portalzones())
+
+tminx=(portalzones(p).x1/100)
+tmaxx=(portalzones(p).x2/100)-1
+tminy=(portalzones(p).z1/-100)
+tmaxy=(portalzones(p).z2/-100)-1
+tlmin=(portalzones(p).y1/100)
+tlmax=(portalzones(p).y2/100)-1
+
+`=============LAYERS===================
+for lay=tlmin to tlmax
+for x=tminx to tmaxx
+for y=tminy to tmaxy
+px#=(x*100)+50 : py#=(lay*100)+50 : pz#=(y*-100)-50
+
+`=============FRONT+LAYERS===================
+if y=tminy
+fty=redusevalue(y-1,miny,maxy)
+if vseg(lay,x,y).vis.wf=0 and vseg(lay,x,y).vis.owf=0 and vseg(lay,x,fty).vis.wb=0 and vseg(lay,x,fty).vis.owb=0
+z=POINT IN ZONE GROUP(px#,py#,pz#+100,1)
+if z>0 and z<>p then t=addportalindex(p,z)
+endif
+endif
+`=============BACK+LAYERS===================
+if y=tmaxy
+bty=redusevalue(y+1,miny,maxy)
+if vseg(lay,x,bty).vis.wf=0 and vseg(lay,x,bty).vis.owf=0 and vseg(lay,x,y).vis.wb=0 and vseg(lay,x,y).vis.owb=0
+z=POINT IN ZONE GROUP(px#,py#,pz#-100,1)
+if z>0 and z<>p then t=addportalindex(p,z)
+endif
+endif
+`=============LEFT+LAYERS===================
+if x=tminx
+ltx=redusevalue(x-1,minx,maxx)
+if vseg(lay,x,y).vis.wl=0 and vseg(lay,x,y).vis.owl=0 and vseg(lay,ltx,y).vis.wr=0 and vseg(lay,ltx,y).vis.owr=0
+z=POINT IN ZONE GROUP(px#-100,py#,pz#,1)
+if z>0 and z<>p then t=addportalindex(p,z)
+endif
+endif
+`=============RIGHT+LAYERS===================
+if x=tmaxx
+rtx=redusevalue(x+1,minx,maxx)
+if vseg(lay,x,y).vis.wr=0 and vseg(lay,x,y).vis.owr=0 and vseg(lay,rtx,y).vis.wl=0 and vseg(lay,rtx,y).vis.owl=0
+z=POINT IN ZONE GROUP(px#+100,py#,pz#,1)
+if z>0 and z<>p then t=addportalindex(p,z)
+endif
+endif
+`=============UP+LAYERS===================
+if lay=tlmax
+tlu=redusevalue(lay+1,lmin,lmax)
+if vseg(tlu,x,y).vis.f=0 and vseg(tlu,x,y).vis.r=0
+z=POINT IN ZONE GROUP(px#,py#+100,pz#,1)
+if z>0 and z<>p then t=addportalindex(p,z)
+endif
+endif
+`=============DOWN+LAYERS===================
+if lay=tlmin
+if vseg(lay,x,y).vis.f=0 and vseg(lay,x,y).vis.r=0
+z=POINT IN ZONE GROUP(px#,py#-100,pz#,1)
+if z>0 and z<>p then t=addportalindex(p,z)
+endif
+endif
+
+next y
+next x
+next lay
+next p
+
+`for tp=1 to array count(portalconnection())
+`print console "["+str$(portalconnection(tp).a)+"]["+str$(portalconnection(tp).b)+"]["+str$(portalconnection(tp).g)+"]"
+`print console chr$(10)
+`next tp
+
+maxgroup=1
+dim tempgroupstr(0) as string
+for tp=1 to array count(portalconnection())
+if portalconnection(tp).g=0
+inc maxgroup
+tempstr$=""
+dim tempgroup(0)
+
+portalconnection(tp).g=maxgroup
+
+if instr(tempstr$,"["+str$(portalconnection(tp).a)+"]")=0
+tempstr$=tempstr$+"["+str$(portalconnection(tp).a)+"]"
+array insert at bottom tempgroup()
+h=array count(tempgroup())
+tempgroup(h)=portalconnection(tp).a
+portalzones(portalconnection(tp).a).room=maxgroup
+place zone in group portalconnection(tp).a,maxgroup
+endif
+
+if instr(tempstr$,"["+str$(portalconnection(tp).b)+"]")=0
+tempstr$=tempstr$+"["+str$(portalconnection(tp).b)+"]"
+array insert at bottom tempgroup()
+h=array count(tempgroup())
+tempgroup(h)=portalconnection(tp).b
+portalzones(portalconnection(tp).b).room=maxgroup
+place zone in group portalconnection(tp).b,maxgroup
+endif
+
+
+if p<>tp
+
+for u=1 to array count(tempgroup())
+for p=1 to array count(portalconnection())
+ut=tempgroup(u)
+a2=portalconnection(p).a : b2=portalconnection(p).b
+if ut=a2 or ut=b2
+portalconnection(p).g=maxgroup
+
+if instr(tempstr$,"["+str$(a2)+"]")=0
+tempstr$=tempstr$+"["+str$(a2)+"]"
+array insert at bottom tempgroup()
+h=array count(tempgroup())
+tempgroup(h)=a2
+portalzones(portalconnection(p).a).room=maxgroup
+place zone in group portalconnection(p).a,maxgroup
+`print console "["+str$(portalconnection(p).a)+"]["+str$(maxgroup)+"]"
+`print console chr$(10)
+u=1
+endif
+
+if instr(tempstr$,"["+str$(b2)+"]")=0
+tempstr$=tempstr$+"["+str$(b2)+"]"
+array insert at bottom tempgroup()
+h=array count(tempgroup())
+tempgroup(h)=b2
+portalzones(portalconnection(p).b).room=maxgroup
+place zone in group portalconnection(p).b,maxgroup
+`print console "["+str$(portalconnection(p).b)+"]["+str$(maxgroup)+"]"
+`print console chr$(10)
+u=1
+endif
+
+endif
+next p
+next u
+
+endif
+
+array insert at bottom tempgroupstr()
+xstr=array count(tempgroupstr())
+tempgroupstr(xstr)="(group"+str$(maxgroup)+")"+tempstr$
+
+`print console "["+str$(portalconnection(tp).a)+"]["+str$(portalconnection(tp).b)+"]["+str$(portalconnection(tp).g)+"]"
+`print console chr$(10)
+`print console tempstr$
+`print console chr$(10)
+endif
+
+next tp
+
+for cprt=1 to array count(portalzones())
+g=findportalgroup(cprt)
+if g>1 then portalzones(cprt).room=g
+`print console str$(portalzones(cprt).room)
+`print console chr$(10)
+next cprt
+
+remstart
+for room=0 to maxgroup
+for cprt=1 to array count(portalzones())
+if portalzones(cprt).room>1
+if portalzones(cprt).room=room
+for p=1 to array count(portalzones())
+if portalzones(cprt).obj<>portalzones(p).obj
+if portalzones(cprt).room=portalzones(p).room
+tempobj=makeobjectbox(portalzones(p).sx,portalzones(p).sy,portalzones(p).sz)
+position object tempobj,portalzones(p).px,portalzones(p).py,portalzones(p).pz
+perform csg intersection portalzones(cprt).obj,tempobj
+delete object tempobj
+endif
+endif
+next p
+endif
+endif
+next cprt
+next room
+
+for cprt=1 to array count(portalzones())
+if objectexist(portalzones(cprt).obj)=1
+globaloccobj=optimizemesh(portalzones(cprt).obj,globaloccobj)
+hide object portalzones(cprt).obj
+endif
+next cprt
+
+perform csg intersection globaloccobj,csgobj
+saveobject("temp\segments\globaloccobject.dbo",globaloccobj)
+remend
+
+```````````````````````````````````````````````````````````````````````````
+endfunction
+
+function findportalgroupB(p)
+for t=0 to array count(tempgroupstr())
+i=instr(tempgroupstr(t),"["+str$(p)+"]")
+if i>0 then exitfunction t
+next t
+endfunction 0
+
+function findportalindex(a,b)
+for p=1 to array count(portalconnection())
+if (portalconnection(p).a=a and portalconnection(p).b=b) or (portalconnection(p).a=b and portalconnection(p).b=a) then exitfunction p
+next p
+endfunction 0
+
+function findportalgroup(a)
+for p=1 to array count(portalconnection())
+if portalconnection(p).a=a or portalconnection(p).b=a then g=portalconnection(p).g : exitfunction g
+next p
+endfunction 0
+
+function addportalindex(a,b)
+t=findportalindex(a,b)
+if t=0
+array insert at bottom portalconnection()
+t=array count(portalconnection())
+portalconnection(t).a=a
+portalconnection(t).b=b
+portalconnection(t).g=0
+endif
+endfunction t
+
+function optimizefrontwall()
+
+fobj=0
+for lay=lmin to lmax
+for y=miny to maxy
+for x=minx to maxx
+
+if vseg(lay,x,y).vis.wf>0
+fobj=optimizemesh(vseg(lay,x,y).vis.wf,fobj)
+`fobj=optimizemesh(vseg(lay,x,y).vis.ctl,fobj)
+`fobj=optimizemesh(vseg(lay,x,y).vis.ctr,fobj)
+`if arraynotout(lay,x-1,y)>0 then fobj=optimizemesh(vseg(lay,x-1,y).vis.ctr,fobj)
+`if arraynotout(lay,x+1,y)>0 then fobj=optimizemesh(vseg(lay,x+1,y).vis.ctl,fobj)
+`if objectvisible(vseg(lay,x,y).vis.octl)=1 then hideobject(vseg(lay,x,y).vis.octl) : set object mask vseg(lay,x,y).vis.octl,0
+`if objectvisible(vseg(lay,x,y).vis.octr)=1 then hideobject(vseg(lay,x,y).vis.octr) : set object mask vseg(lay,x,y).vis.octr,0
+
+inc twall
+if vseg(lay,x,y).vis.wr>0
+inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+else
+if x+1<=maxx
+if vseg(lay,x+1,y).vis.wf>0
+fseg=findstatic(vseg(lay,x,y).vis.wf)
+fbseg=findstatic(vseg(lay,x+1,y).vis.wf)
+if fss(fseg).texture$<>fss(fbseg).texture$ or fss(fseg).csg<>fss(fbseg).csg then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif : endif
+endif
+else
+if twall>0 then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif
+
+next x
+next y
+next lay
+endfunction
+
+function optimizefrontoutwalls()
+fobj=0
+for lay=lmin to lmax
+for y=miny to maxy
+for x=minx to maxx
+if vseg(lay,x,y).vis.owf>0
+fobj=optimizemesh(vseg(lay,x,y).vis.owf,fobj)
+`fobj=optimizemesh(vseg(lay,x,y).vis.octl,fobj)
+`fobj=optimizemesh(vseg(lay,x,y).vis.octr,fobj)
+inc twall
+if vseg(lay,x,y).vis.wr>0
+inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+else
+if x+1<=maxx
+if vseg(lay,x+1,y).vis.owf>0
+fseg=findstatic(vseg(lay,x,y).vis.owf)
+fbseg=findstatic(vseg(lay,x+1,y).vis.owf)
+if fss(fseg).texture$<>fss(fbseg).texture$ or fss(fseg).csg<>fss(fbseg).csg then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif : endif
+endif
+else
+if twall>0 then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif
+next x
+next y
+next lay
+endfunction
+
+function optimizeleftwalls()
+fobj=0
+for lay=lmin to lmax
+for x=minx to maxx
+for y=miny to maxy
+
+if vseg(lay,x,y).vis.wl>0
+fobj=optimizemesh(vseg(lay,x,y).vis.wl,fobj)
+inc twall
+if vseg(lay,x,y).vis.wb>0
+inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+else
+if y+1<=maxy
+if vseg(lay,x,y+1).vis.wl>0
+fseg=findstatic(vseg(lay,x,y).vis.wl)
+fbseg=findstatic(vseg(lay,x,y+1).vis.wl)
+if fss(fseg).texture$<>fss(fbseg).texture$ or fss(fseg).csg<>fss(fbseg).csg then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif : endif
+endif
+else
+if twall>0 then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif
+
+next y
+next x
+next lay
+endfunction
+
+function optimizeleftoutwalls()
+fobj=0
+for lay=lmin to lmax
+for x=minx to maxx
+for y=miny to maxy
+
+if vseg(lay,x,y).vis.owl>0
+fobj=optimizemesh(vseg(lay,x,y).vis.owl,fobj)
+inc twall
+if vseg(lay,x,y).vis.owb>0
+inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+else
+if y+1<=maxy
+if vseg(lay,x,y+1).vis.owl>0
+fseg=findstatic(vseg(lay,x,y).vis.owl)
+fbseg=findstatic(vseg(lay,x,y+1).vis.owl)
+if fss(fseg).texture$<>fss(fbseg).texture$ or fss(fseg).csg<>fss(fbseg).csg then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif : endif
+endif
+else
+if twall>0 then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif
+
+next y
+next x
+next lay
+endfunction
+
+function optimizebackwalls()
+fobj=0
+for lay=lmin to lmax
+for y=miny to maxy
+for x=minx to maxx
+
+if vseg(lay,x,y).vis.wb>0
+fobj=optimizemesh(vseg(lay,x,y).vis.wb,fobj)
+
+inc twall
+if vseg(lay,x,y).vis.wr>0
+inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+else
+if x+1<=maxx
+if vseg(lay,x+1,y).vis.wb>0
+fseg=findstatic(vseg(lay,x,y).vis.wb)
+fbseg=findstatic(vseg(lay,x+1,y).vis.wb)
+if fss(fseg).texture$<>fss(fbseg).texture$ or fss(fseg).csg<>fss(fbseg).csg then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif : endif
+endif
+else
+if twall>0 then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif
+
+next x
+next y
+next lay
+endfunction
+
+function optimizebackoutwalls()
+fobj=0
+for lay=lmin to lmax
+for y=miny to maxy
+for x=minx to maxx
+
+if vseg(lay,x,y).vis.owb>0
+fobj=optimizemesh(vseg(lay,x,y).vis.owb,fobj)
+`fobj=optimizemesh(vseg(lay,x,y).vis.ocbl,fobj)
+`fobj=optimizemesh(vseg(lay,x,y).vis.ocbr,fobj)
+inc twall
+if vseg(lay,x,y).vis.owr>0
+inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+else
+if x+1<=maxx
+if vseg(lay,x+1,y).vis.owb>0
+fseg=findstatic(vseg(lay,x,y).vis.owb)
+fbseg=findstatic(vseg(lay,x+1,y).vis.owb)
+if fss(fseg).texture$<>fss(fbseg).texture$ or fss(fseg).csg<>fss(fbseg).csg then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif : endif
+endif
+else
+if twall>0 then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif
+
+next x
+next y
+next lay
+endfunction
+
+function optimizerightwalls()
+fobj=0
+for lay=lmin to lmax
+for x=minx to maxx
+for y=miny to maxy
+
+if vseg(lay,x,y).vis.wr>0
+fobj=optimizemesh(vseg(lay,x,y).vis.wr,fobj)
+inc twall
+if vseg(lay,x,y).vis.wb>0
+inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+else
+if y+1<=maxy
+if vseg(lay,x,y+1).vis.wr>0
+fseg=findstatic(vseg(lay,x,y).vis.wr)
+fbseg=findstatic(vseg(lay,x,y+1).vis.wr)
+if fss(fseg).texture$<>fss(fbseg).texture$ or fss(fseg).csg<>fss(fbseg).csg then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif : endif
+endif
+else
+if twall>0 then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif
+
+next y
+next x
+next lay
+endfunction
+
+function optimizerightoutwalls()
+fobj=0
+for lay=lmin to lmax
+for x=minx to maxx
+for y=miny to maxy
+
+if vseg(lay,x,y).vis.owr>0
+fobj=optimizemesh(vseg(lay,x,y).vis.owr,fobj)
+inc twall
+if vseg(lay,x,y).vis.owb>0
+inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+else
+if y+1<=maxy
+if vseg(lay,x,y+1).vis.owr>0
+fseg=findstatic(vseg(lay,x,y).vis.owr)
+fbseg=findstatic(vseg(lay,x,y+1).vis.owr)
+if fss(fseg).texture$<>fss(fbseg).texture$ or fss(fseg).csg<>fss(fbseg).csg then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif : endif
+endif
+else
+if twall>0 then inc wallcount : twall=0 : setoclusion(fobj) : fobj=0
+endif
+
+next y
+next x
+next lay
+endfunction
+
+function floorfindmaxsx(lay,x,y,maxx,maxy,f)
+sxcolide=0
+for sx=x to maxx
+if vseg(lay,sx,y).vis.wr>0 or vseg(lay,sx,y).vis.owr>0 then sxcolide=1
+if arraynotout(lay,sx+1,y)>0
+if vseg(lay,sx+1,y).vis.wl>0 or vseg(lay,sx+1,y).vis.owl>0 then sxcolide=1
+if vseg(lay,sx+1,y).vis.f>0
+if object visible(vseg(lay,sx+1,y).vis.f)=0 then sxcolide=1
+tfs=findstatic(vseg(lay,sx+1,y).vis.f)
+if getsegmenttype(fss(tfs).meshname$,"",0,fss(tfs).ry,0)<>f then sxcolide=1
+else
+sxcolide=1
+endif
+else
+sxcolide=1
+endif
+if sxcolide=1 then maxsx=max(maxsx,sx) : exit
+next sx
+endfunction maxsx
+
+function floorfindmaxsy(lay,x,y,maxx,maxy,f)
+maxsy=maxy
+for sx=x to maxx
+sycolide=0
+for sy=y to maxy
+if vseg(lay,sx,sy).vis.wb>0 or vseg(lay,sx,sy).vis.owb>0 then sycolide=1
+if arraynotout(lay,sx,sy+1)>0
+if vseg(lay,sx,sy+1).vis.wf>0 or vseg(lay,sx,sy+1).vis.owf>0 then sycolide=1
+if vseg(lay,sx,sy+1).vis.f>0
+if object visible(vseg(lay,sx,sy+1).vis.f)=0 then sycolide=1
+tfs=findstatic(vseg(lay,sx,sy+1).vis.f)
+if getsegmenttype(fss(tfs).meshname$,"",0,fss(tfs).ry,0)<>f then sycolide=1
+else
+sycolide=1
+endif
+else
+sycolide=1
+endif
+if sycolide=1 then maxsy=min(maxsy,sy) : exit
+next sy
+next sx
+endfunction maxsy
+
+function rooffindmaxsx(lay,x,y,maxx,maxy,f)
+sxcolide=0
+for sx=x to maxx
+if vseg(lay,sx,y).vis.wr>0 or vseg(lay,sx,y).vis.owr>0 then sxcolide=1
+if arraynotout(lay,sx+1,y)>0
+if vseg(lay,sx+1,y).vis.wl>0 or vseg(lay,sx+1,y).vis.owl>0 then sxcolide=1
+if vseg(lay,sx+1,y).vis.r>0
+if object visible(vseg(lay,sx+1,y).vis.r)=0 then sxcolide=1
+tfs=findstatic(vseg(lay,sx+1,y).vis.r)
+if getsegmenttype(fss(tfs).meshname$,"",0,fss(tfs).ry,0)<>f then sxcolide=1
+else
+sxcolide=1
+endif
+else
+sxcolide=1
+endif
+if sxcolide=1 then maxsx=max(maxsx,sx) : exit
+next sx
+endfunction maxsx
+
+function rooffindmaxsy(lay,x,y,maxx,maxy,f)
+maxsy=maxy
+for sx=x to maxx
+sycolide=0
+for sy=y to maxy
+if vseg(lay,sx,sy).vis.wb>0 or vseg(lay,sx,sy).vis.owb>0 then sycolide=1
+if arraynotout(lay,sx,sy+1)>0
+if vseg(lay,sx,sy+1).vis.wf>0 or vseg(lay,sx,sy+1).vis.owf>0 then sycolide=1
+if vseg(lay,sx,sy+1).vis.r>0
+if object visible(vseg(lay,sx,sy+1).vis.r)=0 then sycolide=1
+tfs=findstatic(vseg(lay,sx,sy+1).vis.r)
+if getsegmenttype(fss(tfs).meshname$,"",0,fss(tfs).ry,0)<>f then sycolide=1
+else
+sycolide=1
+endif
+else
+sycolide=1
+endif
+if sycolide=1 then maxsy=min(maxsy,sy) : exit
+next sy
+next sx
+endfunction maxsy
+
+function optimizefloor()
+gosub _segments_optimized_init
+for fseg=0 to array count(fss())
+tfloor=fss(fseg).obj
+if fss(fseg).isfloor>0 and tfloor>0
+show object tfloor
+f=getsegmenttype(fss(fseg).meshname$,"",0,fss(fseg).ry,0)
+endif
+next fseg
+
+`for f=1 to array count(segmentdata())
+for fseg=0 to array count(fss())
+firstfloor=0
+tfloor=fss(fseg).obj
+if fss(fseg).isfloor>0 and tfloor>0
+if object visible(tfloor)=1
+lay=fss(fseg).lay
+x=fss(fseg).x
+y=fss(fseg).y
+f=getsegmenttype(fss(fseg).meshname$,"",0,fss(fseg).ry,0)
+`if ft=f
+maxsx=floorfindmaxsx(lay,x,y,maxx,maxy,f)
+maxsy=floorfindmaxsy(lay,x,y,maxsx,maxy,f)
+
+for sx=x to maxsx
+for sy=y to maxsy
+syfloor=vseg(lay,sx,sy).vis.f
+if syfloor>0
+if object visible(syfloor)=1
+yfseg=findstatic(syfloor)
+yft=getsegmenttype(fss(yfseg).meshname$,"",0,fss(yfseg).ry,0)
+if yft=f
+firstfloor=optimizemesh(syfloor,firstfloor) : hide object syfloor
+else
+exit
+endif
+else
+exit
+endif
+else
+exit
+endif
+next sy
+next sx
+
+if firstfloor>0 then setoclusionfloor(firstfloor) : firstfloor=0
+endif : endif `: endif
+next fseg
+`next f
+
+empty array segmentdata()
+endfunction
+
+function optimizeroof()
+gosub _segments_optimized_init
+for fseg=0 to array count(fss())
+tfloor=fss(fseg).obj
+if fss(fseg).isroof>0 and tfloor>0
+show object tfloor
+f=getsegmenttype(fss(fseg).meshname$,"",0,fss(fseg).ry,0)
+endif
+next fseg
+
+`for f=1 to array count(segmentdata())
+for fseg=0 to array count(fss())
+firstfloor=0
+tfloor=fss(fseg).obj
+if fss(fseg).isroof>0 and tfloor>0
+if object visible(tfloor)=1
+lay=fss(fseg).lay
+x=fss(fseg).x
+y=fss(fseg).y
+f=getsegmenttype(fss(fseg).meshname$,"",0,fss(fseg).ry,0)
+`if ft=f
+maxsx=rooffindmaxsx(lay,x,y,maxx,maxy,f)
+maxsy=rooffindmaxsy(lay,x,y,maxsx,maxy,f)
+
+for sx=x to maxsx
+for sy=y to maxsy
+syfloor=vseg(lay,sx,sy).vis.r
+if syfloor>0
+if object visible(syfloor)=1
+yfseg=findstatic(syfloor)
+yft=getsegmenttype(fss(yfseg).meshname$,"",0,fss(yfseg).ry,0)
+if yft=f
+firstfloor=optimizemesh(syfloor,firstfloor) : hide object syfloor
+else
+exit
+endif
+else
+exit
+endif
+else
+exit
+endif
+next sy
+next sx
+
+if firstfloor>0 then setoclusionfloor(firstfloor) : firstfloor=0
+endif : endif `: endif
+next fseg
+`next f
+
+empty array segmentdata()
+endfunction
+
+function optimizeoverlay()
+dim overlaydata(0) as integer
+for fseg=0 to array count(fss())
+if objectexist(fss(fseg).obj)>0
+if fss(fseg).overlay<>0 and fss(fseg).partmode=0
+f=getsegmenttype("",fss(fseg).texture$,0,0,0) : show object fss(fseg).obj
+array insert at bottom overlaydata()
+ov=array count(overlaydata())
+overlaydata(ov)=fseg
+endif
+endif
+next fseg
+
+firstoverlay=0
+for cprt=0 to array count(portalzones())
+for ov=1 to array count(overlaydata())
+fseg=overlaydata(ov) : f=getsegmenttype("",fss(fseg).texture$,0,0,0)
+if objectexist(fss(fseg).obj)>0
+if object visible(fss(fseg).obj)=1
+if POINT IN ZONE(fss(fseg).px,fss(fseg).py,fss(fseg).pz,cprt+1)
+firstoverlay=optimizemesh(fss(fseg).obj,firstoverlay) : hide object fss(fseg).obj
+for ovb=0 to array count(overlaydata())
+ofseg=overlaydata(ovb) : ft=getsegmenttype("",fss(ofseg).texture$,0,0,0)
+if fss(fseg).lay=fss(ofseg).lay
+if objectexist(fss(ofseg).obj)>0
+if object visible(fss(ofseg).obj)=1
+if POINT IN ZONE(fss(ofseg).px,fss(ofseg).py,fss(ofseg).pz,cprt+1)
+if ft=f then firstoverlay=optimizemesh(fss(ofseg).obj,firstoverlay) : hide object fss(ofseg).obj
+endif
+endif
+endif
+endif
+next ovb
+if firstoverlay>0 then setoclusion(firstoverlay) : firstoverlay=0
+endif
+endif
+endif
+next ov
+next cprt
+
+empty array segmentdata()
+undim overlaydata()
+endfunction
+
+function setoclusionfloor(obj)
+if objectexist(obj)=1
+array insert at bottom oseg()
+cseg=array count(oseg())
+
+ccx#=object collision center x(obj) : ccy#=object collision center y(obj) : ccz#=object collision center z(obj)
+osx#=object size x(obj,1) : osy#=object size y(obj,1) : osz#=object size z(obj,1)
+
+tminx=((ccx#-(osx#*0.5)+50)/100) : tminy=((abs(ccz#)-(abs(osz#)*0.5)+50)/100)
+tmaxx=((ccx#+(osx#*0.5)-50)/100) : tmaxy=((abs(ccz#)+(abs(osz#)*0.5)-50)/100)
+
+lmbn$=limb name$(obj,0)
+if lmbn$<>"" then fseg=val(lmbn$)
+ttex$=fss(fseg).texture$
+if fss(fseg).overlay=0 and vseg(lay,x,y).mode<=1 then tochnofloor=1 else tochnofloor=0
+
+mlmb=get limb count(obj)
+for lmb=0 to mlmb
+offset limb obj,lmb,(limb offset x(obj,lmb)-ccx#),(limb offset y(obj,lmb)-ccy#),(limb offset z(obj,lmb)-ccz#),1
+next lmb
+updatemesh(obj,0)
+
+lay=fss(fseg).lay
+x=fss(fseg).x
+y=fss(fseg).y
+if tochnofloor=1
+occfloor=makeobjectbox(osx#,osy#,osz#)
+else
+occfloor=makeobjectbox(osx#,4,osz#)
+offset limb occfloor,0,0,(osy#*0.5)-4,0,1
+updatemesh(occfloor,0)
+endif
+
+yrotate object occfloor,90-fss(fseg).ry
+tangy=(wrapvalue(fss(fseg).ry/90))
+if tangy=1 or tangy=3
+ftfx#=osz#*0.5 : ftfz#=osx#*0.5
+else
+ftfz#=osz#*0.5 : ftfx#=osx#*0.5
+endif
+`AutoUVMapping(occfloor,0,-1,200,200,2,2,ftfx#,ftfz#)
+yrotate object occfloor,0
+
+`if fss(fseg).vertc=24 and tochnofloor=1 and uvnotchanged(obj)=1
+`delete object obj
+`clone object obj,occfloor
+`position object occfloor,0,0,0
+`timg=loadimage(ttex$,0)
+`texture object occfloor,0,timg
+`oseg(cseg).saveobj=1
+`else
+`timg=loadimage(ttex$,0)
+`texture object obj,0,timg
+`oseg(cseg).saveobj=0
+`endif
+
+oseg(cseg).obj=obj
+oseg(cseg).occobj=occfloor
+oseg(cseg).px=ccx#
+oseg(cseg).py=ccy#
+oseg(cseg).pz=ccz#
+oseg(cseg).fseg=fseg
+oseg(cseg).texture$=fss(fseg).texture$
+oseg(cseg).mesh$=fss(fseg).meshname$
+oseg(cseg).collision=fss(fseg).material
+oseg(cseg).collisiontype=0
+if fss(fseg).vertc=24 then oseg(cseg).collisiontype=1
+if colliden>0 then colliden=1
+oseg(cseg).csg=colliden
+oseg(cseg).isfloor=fss(fseg).isfloor
+oseg(cseg).iswall=fss(fseg).iswall
+oseg(cseg).isoutwall=fss(fseg).isoutwall
+oseg(cseg).iscorner=fss(fseg).iscorner
+oseg(cseg).isoutcorner=fss(fseg).isoutcorner
+oseg(cseg).isroof=fss(fseg).isroof
+oseg(cseg).overlay=fss(fseg).overlay
+
+position object occfloor,ccx#,ccy#,ccz#
+position object obj,0,0,0
+texture object obj,0,timg
+texture object occfloor,0,timg
+`set object wireframe occfloor,1
+`if occfloor>0 then hide object occfloor
+`ghost object on obj,2
+endif
+endfunction occfloor
+
+function setoclusion(obj)
+fseg=0 : lmbn$=""
+if objectexist(obj)>0
+array insert at bottom oseg()
+cseg=array count(oseg())
+
+mlmb=get limb count(obj)
+`ttex$=limb texture name(obj,0)
+ccx#=object collision center x(obj) : ccy#=object collision center y(obj) : ccz#=object collision center z(obj)
+rosx#=object size x(obj,1) : rosy#=object size y(obj,1) : rosz#=object size z(obj,1)
+osx#=rosx# : osy#=rosy# : osz#=rosz#
+lmbn$=limb name$(obj,0)
+ttex$=limb texture name(obj,0)
+if lmbn$<>"" then fseg=val(lmbn$)
+
+for lmb=0 to mlmb
+offset limb obj,lmb,(limb offset x(obj,lmb)-ccx#),(limb offset y(obj,lmb)-ccy#),(limb offset z(obj,lmb)-ccz#),1
+next lmb
+updatemesh(obj,0)
+
+
+
+if fseg>0
+`ttex$=fss(fseg).texture$
+if fss(fseg).iswall>0 or fss(fseg).isoutwall>0
+if osx#<50 then osx#=4 : mw=1 : walllenght=osz# : wallwide=osx#
+if osz#<50 then osz#=4 : mw=2 : walllenght=osx# : wallwide=osz#
+
+fz#=(fss(fseg).osz*0.5)-1.75
+if fss(fseg).isoutwall=1 then  lccx#=0 : lccy#=0 : lccz#=(fz#)
+if fss(fseg).isoutwall=3 then  lccx#=0 : lccy#=0 : lccz#=-(fz#)
+if fss(fseg).isoutwall=4 then  lccx#=(fz#) : lccy#=0 : lccz#=0
+if fss(fseg).isoutwall=2 then  lccx#=-(fz#) : lccy#=0 : lccz#=0
+if fss(fseg).iswall=3 then  lccx#=0 : lccy#=0 : lccz#=fz#
+if fss(fseg).iswall=1 then  lccx#=0 : lccy#=0 : lccz#=-fz#
+if fss(fseg).iswall=2 then  lccx#=fz# : lccy#=0 : lccz#=0
+if fss(fseg).iswall=4 then  lccx#=-fz# : lccy#=0 : lccz#=0
+occobj=makeobjectbox(osx#,osy#,osz#)
+
+tiswall=segmentiswall(fss(fseg).lay,fss(fseg).x,fss(fseg).y,fss(fseg).obj)
+if tiswall=0 then tiswall=segmentisoutwall(fss(fseg).lay,fss(fseg).x,fss(fseg).y,fss(fseg).obj)
+if tiswall=1 or tiswall=3 then rotate object occobj,0,90,0
+`AutoUVMapping(occobj,0,-1,100,100,1,1,max(osx#*0.5,osz#*0.5),osy#*0.5)
+rotate object occobj,0,0,0
+offset limb occobj,0,lccx#,lccy#,lccz#,1
+`obj=loadobject("meshbank\common\darkocclusionwall.x","",0,obj)
+`scale object obj,osx#,osy#,osz#
+updatemesh(occobj,0)
+`u#=max(osx#,osz#)/100
+`v#=1
+`if u=>1 and v=>1 then scale object texture occobj,u#,v#
+position object occobj,ccx#,ccy#,ccz#
+sc_setupobject occobj,2,2
+colliden=SC_GroupCollision(occobj,2)
+if colliden>0
+sc_removeObject occobj
+perform csg difference occobj,csgobj
+`perform csg intersection obj,csgobj
+else
+sc_removeObject occobj
+endif
+hideobject(csgobj)
+position object occobj,0,0,0
+
+endif
+endif
+
+timg=loadimage(ttex$,0)
+texture object obj,0,timg
+`filename$="temp\segments\"+str$(cseg)+".dbo"
+`saveobject(filename$,obj)
+oseg(cseg).saveobj=0
+oseg(cseg).obj=obj
+oseg(cseg).occobj=occobj
+oseg(cseg).px=ccx#
+oseg(cseg).py=ccy#
+oseg(cseg).pz=ccz#
+oseg(cseg).fseg=fseg
+oseg(cseg).texture$=fss(fseg).texture$
+oseg(cseg).mesh$=fss(fseg).meshname$
+oseg(cseg).collision=fss(fseg).material
+if colliden>0 then colliden=1
+oseg(cseg).csg=colliden
+oseg(cseg).isfloor=fss(fseg).isfloor
+oseg(cseg).iswall=fss(fseg).iswall
+oseg(cseg).isoutwall=fss(fseg).isoutwall
+oseg(cseg).iscorner=fss(fseg).iscorner
+oseg(cseg).isoutcorner=fss(fseg).isoutcorner
+oseg(cseg).isroof=fss(fseg).isroof
+oseg(cseg).overlay=fss(fseg).overlay
+
+position object obj,ccx#,ccy#,ccz#
+
+`ghost object on obj,2
+if occobj>0 then position object occobj,ccx#,ccy#,ccz#
+`if occobj>0 then hide object occobj
+
+texture object obj,0,timg
+`convert object fvf obj,0x002||0x010||0x200
+
+endif
+endfunction
+
+function optimizemesh(obj,tobj)
+if obj>0
+`if tobj>0 then te=findlimb(tobj,str$(obj))
+`if te=-1 or tobj=0
+`fseg=findstatic(obj)
+bpx#=object position x(obj) : bpy#=object position y(obj) : bpz#=object position z(obj)
+bax#=object angle x(obj) : bay#=object angle y(obj) : baz#=object angle z(obj)
+position object obj,0,0,0
+rotate object obj,0,0,0
+msh=find free mesh()
+updatemesh(obj,0)
+offset limb obj,0,bpx#,bpy#,bpz#
+rotate limb obj,0,bax#,bay#,baz#
+make mesh from object msh,obj
+
+lock vertexdata for mesh msh
+avc=get vertexdata index count()
+unlock vertexdata
+
+if tobj>0
+maxl=get limb count(tobj)
+lock vertexdata for limb tobj,maxl
+bvc=get vertexdata index count()
+unlock vertexdata
+endif
+
+if avc+bvc=>65535 then newlimb=1
+`timg=loadimage("texturebank\common\baseweld.dds",0)
+if tobj=0 then tobj=makeobjectempty(0) `: set limb name tobj,0,str$(fseg)
+`blma=append limb(tobj,msh,str$(obj))
+if newlimb=1
+append limb tobj,msh
+else
+maxl=get limb count(tobj)
+texture object tobj,timg
+lock vertexdata for limb tobj,maxl,2
+add mesh to vertexdata msh
+unlock vertexdata
+delete mesh msh
+calculate object bounds tobj
+endif
+`set object mask obj,0
+
+hideobject(obj)
+`delete object obj
+`endif
+endif
+endfunction tobj
+
+function optimizemeshalpha(obj,tobj,alpha)
+if obj>0
+
+bpx#=object position x(obj) : bpy#=object position y(obj) : bpz#=object position z(obj)
+bax#=object angle x(obj) : bay#=object angle y(obj) : baz#=object angle z(obj)
+position object obj,0,0,0
+rotate object obj,0,0,0
+msh=find free mesh()
+updatemesh(obj,0)
+offset limb obj,0,bpx#,bpy#,bpz#
+rotate limb obj,0,bax#,bay#,baz#
+make mesh from object msh,obj
+
+lock vertexdata for mesh msh
+avc=get vertexdata index count()
+unlock vertexdata
+
+if alpha=0
+
+if tobj>0
+maxl=findlastlimbbystring(tobj,"group")
+if maxl>-1
+lock vertexdata for limb tobj,maxl
+bvc=get vertexdata index count()
+unlock vertexdata
+endif
+endif
+
+if avc+bvc=>65535 then newlimb=1
+timg=loadimage("texturebank\common\baseweld.dds",0)
+if tobj=0 then tobj=makeobjectempty(0) : set limb name tobj,0,"group0"
+
+if newlimb=1
+append limb tobj,msh,"group"+str$(maxl)
+else
+maxl=findlastlimbbystring(tobj,"group")
+texture object tobj,timg
+lock vertexdata for limb tobj,maxl,2
+add mesh to vertexdata msh
+unlock vertexdata
+delete mesh msh
+calculate object bounds tobj
+endif
+
+else ` if alpha>0
+
+if tobj>0
+maxl=findlastlimbbystring(tobj,"alpha")
+if maxl>-1
+lock vertexdata for limb tobj,maxl
+bvc=get vertexdata index count()
+unlock vertexdata
+endif
+endif
+
+if avc+bvc=>65535 then newlimb=1
+timg=loadimage("texturebank\common\baseweld.dds",0)
+if tobj=0 then tobj=makeobjectempty(0) : set limb name tobj,0,"alpha0"
+
+if newlimb=1 or maxl=-1
+cl=get limb count(tobj)
+append limb tobj,msh,"alpha"+str$(cl)
+else
+maxl=findlastlimbbystring(tobj,"alpha")
+texture object tobj,timg
+lock vertexdata for limb tobj,maxl,2
+add mesh to vertexdata msh
+unlock vertexdata
+delete mesh msh
+calculate object bounds tobj
+endif
+
+endif
+
+hideobject(obj)
+
+endif
+endfunction tobj
+
+function findlastlimbbystring(obj,limbname$)
+if objectexist(obj)=1
+maxl=get limb count(obj)
+for l=0 to maxl
+cl=maxl-l
+if left$(fast lower$(LIMB NAME$(obj,cl)),len(limbname$))=fast lower$(limbname$) then exitfunction cl
+next l
+endif
+endfunction -1

@@ -1,0 +1,31 @@
+Rem Project: Dark Basic Pro Project
+Rem Created: Saturday, June 26, 2021
+
+Rem ***** Main Source File *****
+sync on : sync rate 60 : set camera range 1,1000000 : autocam off
+cd "E:\Serega\Program Files\FPS Creator\Files\"
+loadportals("temp\segments\portalzones.bin")
+for cprt=0 to array count(portalzones())
+filename$="temp\segments\"+"room_"+str$(cprt+1)+".dbo"
+if file exist(filename$)
+obj=find free object()
+load object filename$,obj
+`CALCULATE OBJECT BOUNDS obj
+set object radius obj,999999999999
+`Set Object Occlusion Cull obj,1,obj
+`Set Object Dynamic obj,1
+set object wireframe obj,1
+SET ZONE cprt+1,portalzones(cprt).x1,portalzones(cprt).y1,portalzones(cprt).z1,portalzones(cprt).x2,portalzones(cprt).y2+5,portalzones(cprt).z2
+`portalzones(cprt).obj=makeobjectbox((-portalzones(cprt).sx)-1,(-portalzones(cprt).sy)-1,(-portalzones(cprt).sz)-1)
+`position object portalzones(cprt).obj,portalzones(cprt).px,portalzones(cprt).py,portalzones(cprt).pz
+`color object portalzones(cprt).obj,rnd(9999999)
+endif
+next cprt
+
+do
+freecam(1)
+`Update Dark Occlusion 0
+sync
+LOOP
+
+end

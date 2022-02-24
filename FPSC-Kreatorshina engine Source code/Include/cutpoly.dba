@@ -1,0 +1,245 @@
+
+function cutpolybase(obj,left,right,fore,back,up,down)
+osx#=object size x(obj) : osy#=object size y(obj) : osz#=object size z(obj)
+position object obj,0,0,0
+rotate object obj,0,0,0
+offset limb obj,0,0,0,0
+updatemesh(obj,0)
+brushobj=find free object()
+make object box brushobj,osx#,osy#,osz#
+ccx#=findcolcenterx(obj)
+ccy#=findcolcentery(obj)
+ccz#=findcolcenterz(obj)
+offset limb brushobj,0,ccx#,ccy#,ccz#
+
+sides=0
+
+if left>0
+inc sides
+position object brushobj,object position x(obj),object position y(obj),object position z(obj)
+rotate object brushobj,object angle x(obj),object angle y(obj),object angle z(obj)
+move object left brushobj,osx#
+perform csg intersection obj,brushobj
+endif
+
+if right>0
+inc sides
+position object brushobj,object position x(obj),object position y(obj),object position z(obj)
+rotate object brushobj,object angle x(obj),object angle y(obj),object angle z(obj)
+move object right brushobj,osx#
+perform csg intersection obj,brushobj
+endif
+
+if fore>0
+inc sides
+position object brushobj,object position x(obj),object position y(obj),object position z(obj)
+rotate object brushobj,object angle x(obj),object angle y(obj),object angle z(obj)
+if osz#=>osx# then move object brushobj,osz#
+perform csg intersection obj,brushobj
+endif
+
+if back>0
+inc sides
+position object brushobj,object position x(obj),object position y(obj),object position z(obj)
+rotate object brushobj,object angle x(obj),object angle y(obj)+180,object angle z(obj)
+if osz#=>osx# then move object brushobj,osz#
+perform csg intersection obj,brushobj
+endif
+
+if up>0
+inc sides
+position object brushobj,object position x(obj),object position y(obj),object position z(obj)
+rotate object brushobj,object angle x(obj),object angle y(obj),object angle z(obj)
+move object up brushobj,osy#
+perform csg intersection obj,brushobj
+endif
+
+if down>0
+inc sides
+if sides=>3 then updatemesh(obj,0)
+position object brushobj,object position x(obj),object position y(obj),object position z(obj)
+rotate object brushobj,object angle x(obj),object angle y(obj),object angle z(obj)
+move object down brushobj,osy#
+perform csg intersection obj,brushobj
+endif
+
+delete object brushobj
+set object smoothing obj,25
+
+endfunction
+
+function cutvertexbase(obj,left,right,fore,back,up,down)
+position object obj,0,0,0
+rotate object obj,0,0,0
+maxpass=8
+perform checklist for object limbs obj
+maxl=checklist quantity()-1
+empty checklist
+for l=0 to maxl
+lock vertexdata for limb obj,l,2
+vmax=get vertexdata vertex count()
+if vmax>0
+osx#=object size x(obj) : osy#=object size y(obj) : osz#=object size z(obj)
+range#=(osx#*0.5)-1
+if left>0 then cutpolyleft(range#,maxpass)
+if right>0 then cutpolyright(range#,maxpass)
+ccz#=object collision center z(obj)
+if osz#<osx# then range#=ccz#-1 else range#=ccz#-(osz#*0.5)
+if fore>0 then cutpolyfore(range#,maxpass)
+if back>0 then cutpolyback(range#,maxpass)
+if osz#<osx#
+uprange#=(osy#*0.5)-1 : downrange#=(osy#*0.5)-1
+else
+uprange#=-(osy#*0.5) : downrange#=-(osy#*0.5)
+endif
+if up>0 then cutpolyup(uprange#,maxpass)
+if down>0 then cutpolydown(downrange#,maxpass)
+
+imax=get vertexdata index count()
+for i=0 to imax+10
+v=get indexdata(i)
+vc=get vertexdata vertex count()
+if v>vc then delete mesh from vertexdata 0,0,i,i+1
+next i
+
+endif
+unlock vertexdata
+next l
+updatemesh(obj,0)
+endfunction
+
+function cutpolyleft(maxrange#,maxpass)
+for pass=0 to maxpass
+fv=-1 : cv=-1 : lv=-1
+vmax=get vertexdata vertex count()
+for v=0 to vmax-1
+vp#=get vertexdata position x(v)
+vn#=get vertexdata normals x(v)
+if vp#<-maxrange# and vn#<-0.85
+if fv>-1
+if v=cv+1 then lv=v : cv=v
+else
+fv=v : cv=v
+endif
+endif
+next v
+deleteindexes(fv,lv+1)
+`if lv>fv and fv>-1 then delete mesh from vertexdata fv,lv+1,0,0
+next pass
+endfunction
+
+function cutpolyright(maxrange#,maxpass)
+for pass=0 to maxpass
+fv=-1 : cv=-1 : lv=-1
+vmax=get vertexdata vertex count()
+for v=0 to vmax-1
+vp#=get vertexdata position x(v)
+vn#=get vertexdata normals x(v)
+if vp#>maxrange# and vn#>0.85
+if fv>-1
+if v=cv+1 then lv=v : cv=v
+else
+fv=v : cv=v
+endif
+endif
+next v
+deleteindexes(fv,lv+1)
+`if lv>fv and fv>-1 then delete mesh from vertexdata fv,lv+1,0,0
+next pass
+endfunction
+
+function cutpolyback(maxrange#,maxpass)
+for pass=0 to maxpass
+fv=-1 : cv=-1 : lv=-1
+vmax=get vertexdata vertex count()
+for v=0 to vmax-1
+vp#=get vertexdata position z(v)
+vn#=get vertexdata normals z(v)
+if vp#>maxrange# and vn#>0.85
+if fv>-1
+if v=cv+1 then lv=v : cv=v
+else
+fv=v : cv=v
+endif
+endif
+next v
+deleteindexes(fv,lv+1)
+`if lv>fv and fv>-1 then delete mesh from vertexdata fv,lv+1,0,0
+next pass
+endfunction
+
+function cutpolyfore(maxrange#,maxpass)
+for pass=0 to maxpass
+fv=-1 : cv=-1 : lv=-1
+vmax=get vertexdata vertex count()
+for v=0 to vmax-1
+vp#=get vertexdata position z(v)
+vn#=get vertexdata normals z(v)
+if vp#<-maxrange# and vn#<-0.85
+if fv>-1
+if v=cv+1 then lv=v : cv=v
+else
+fv=v : cv=v
+endif
+endif
+next v
+deleteindexes(fv,lv+1)
+`if lv>fv and fv>-1 then delete mesh from vertexdata fv,lv+1,0,0
+next pass
+endfunction
+
+function cutpolyup(maxrange#,maxpass)
+for pass=0 to maxpass
+fv=-1 : cv=-1 : lv=-1
+vmax=get vertexdata vertex count()
+for v=0 to vmax-1
+vp#=get vertexdata position y(v)
+vn#=get vertexdata normals y(v)
+if vp#>maxrange# and vn#>0.85
+if fv>-1
+if v=cv+1 then lv=v : cv=v
+else
+fv=v : cv=v
+endif
+endif
+next v
+deleteindexes(fv,lv+1)
+`if lv>fv and fv>-1 then delete mesh from vertexdata fv,lv+1,0,0
+next pass
+endfunction
+
+function cutpolydown(maxrange#,maxpass)
+for pass=0 to maxpass
+fv=-1 : cv=-1 : lv=-1
+vmax=get vertexdata vertex count()
+for v=0 to vmax-1
+vp#=get vertexdata position y(v)
+vn#=get vertexdata normals y(v)
+if vp#<-maxrange# and vn#<-0.85
+if fv>-1
+if v=cv+1 then lv=v : cv=v
+else
+fv=v : cv=v
+endif
+endif
+next v
+deleteindexes(fv,lv+1)
+`if lv>fv and fv>-1 then delete mesh from vertexdata fv,lv+1,0,0
+next pass
+endfunction
+
+function deleteindexes(fv,lv)
+imax=get vertexdata index count()
+fi=-1 : ci=-1 : mi=-1
+for i=0 to imax-1
+v=get indexdata(i)
+if v=>fv and v<=lv
+if fi>-1
+if i=ci+1 then mi=i : ci=i
+else
+fi=i : mi=i : ci=i
+endif
+endif
+next i
+if mi>fi and fi>-1 and mi>0 then delete mesh from vertexdata fv,lv,fi,mi
+endfunction

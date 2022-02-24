@@ -1,0 +1,208 @@
+Rem ***** Included Source File *****
+_sparky_collision_core_init:
+if sparkycollisioncoreinit=0
+global sparkycollisioncoreinit as boolean
+global sc_farrange as integer
+global sc_farx as float
+global sc_fary as float
+global sc_farz as float
+global sparkytime as integer
+
+`types
+type sparkytype
+obj as dword
+group as word
+material as word
+px as float
+py as float
+pz as float
+rx as float
+ry as float
+rz as float
+endtype
+
+`arrays
+global dim sparky(0) as sparkytype
+global dim sparkydynamic(0) as integer
+`if sc_debug>0 then sc_debugmode(1)
+sparkycollisioncoreinit=1
+endif
+return
+
+`--------------------SPARKY
+
+function sc_setobject(obj,group,mode,material,dynamic)
+`modes: 0-poligon, 1-sphere, 2-box
+gosub _sparky_collision_core_init
+if objectexist(obj)=1
+if sc_findobject(obj)=0
+array insert at bottom sparky()
+sc=array count(sparky())
+if dynamic>0
+array insert at bottom sparkydynamic()
+scd=array count(sparkydynamic())
+sparkydynamic(scd)=sc
+endif
+scalex#=getobjectscalex(obj)
+scaley#=getobjectscaley(obj)
+scalez#=getobjectscalez(obj)
+scalea#=(scalex#+scaley#+scalez#)/3
+if scalea#<>100
+scale object obj,100,100,100
+sc_setupobject obj,group,mode
+sc_allowobjectscaling obj
+scale object obj,scalex#,scaley#,scalez#
+else
+sc_setupobject obj,group,mode
+endif
+sparky(sc).obj=obj
+sparky(sc).group=group
+sparky(sc).material=material
+sc_updateobject obj
+endif
+endif
+endfunction
+
+function sc_setcomplexobject(obj,group,mode,material,dynamic)
+gosub _sparky_collision_core_init
+if objectexist(obj)=1
+if sc_findobject(obj)=0
+array insert at bottom sparky()
+sc=array count(sparky())
+if dynamic>0
+array insert at bottom sparkydynamic()
+scd=array count(sparkydynamic())
+sparkydynamic(scd)=sc
+endif
+scalex#=getobjectscalex(obj)
+scaley#=getobjectscaley(obj)
+scalez#=getobjectscalez(obj)
+scalea#=(scalex#+scaley#+scalez#)/3
+if scalea#<>100
+scale object obj,100,100,100
+if getvertexcount(obj,0)<80
+sc_setupobject obj,group,0
+else
+sc_setupcomplexobject obj,group,mode
+endif
+sc_allowobjectscaling obj
+scale object obj,scalex#,scaley#,scalez#
+else
+if getvertexcount(obj,0)<80
+sc_setupobject obj,group,0
+else
+sc_setupcomplexobject obj,group,mode
+endif
+endif
+sparky(sc).obj=obj
+sparky(sc).group=group
+sparky(sc).material=material
+sc_updateobject obj
+endif
+endif
+endfunction
+
+function sc_SlideSphereGroup(group,oldx#,oldy#,oldz#,newx#,newy#,newz#,radius#,exclude)
+gosub _sparky_collision_core_init
+scmax=array count(sparky())
+for sc=1 to scmax
+if objectexist(sparky(sc).obj)=1
+if sparky(sc).group=group
+raydist#=distance(oldx#,oldy#,oldz#,newx#,newy#,newz#)
+objdist#=distance(oldx#,oldy#,oldz#,object position x(sparky(sc).obj),object position y(sparky(sc).obj),object position z(sparky(sc).obj))
+if raydist#<objdist#
+collide=sc_SphereSlide(sparky(sc).obj,oldx#,oldy#,oldz#,newx#,newy#,newz#,radius#,exclude)
+endif
+if collide>0 then exitfunction collide
+endif
+endif
+next sc
+endfunction 0
+
+function sc_findobject(obj)
+gosub _sparky_collision_core_init
+if objectexist(obj)=1
+for sc=1 to array count(sparky())
+if sparky(sc).obj=obj then exitfunction sc
+next sc
+endif
+endfunction 0
+
+function findsc_dynamic(sc)
+for scd=1 to array count(sparkydynamic())
+if sc=sparkydynamic(scd) then exitfunction scd
+next scd
+endfunction 0
+
+remstart
+function sc_debugmode(mode)
+gosub _sparky_collision_core_init
+scmax=array count(sparky())
+for sc=1 to scmax
+if mode>0 then sc_drawObjectBounds(sparky(sc).obj)
+if mode=0 then sc_removeVisualBounds(sparky(sc).obj)
+next sc
+endfunction 0
+remend
+
+
+
+function sc_getmaterial(obj)
+gosub _sparky_collision_core_init
+exitvalue=0
+if objectexist(obj)=1
+sc=sc_findobject(obj)
+if sc>0 then exitvalue=sparky(sc).material : exitfunction exitvalue
+endif
+endfunction exitvalue
+
+function sc_deleteobject(obj)
+gosub _sparky_collision_core_init
+sc=sc_findobject(obj)
+if sc>0
+scd=findsc_dynamic(sc)
+if scd>0 then array delete element sparkydynamic(),scd
+sc_removeobject obj
+array delete element sparky(),sc
+endif
+endfunction
+
+function sc_update(fps)
+if fps=0 then time=0 else time=1000/fps
+if timer()-sparkytime>time
+gosub _sparky_collision_core_init 
+
+for scd=1 to array count(sparkydynamic())
+sc=sparkydynamic(scd)
+if sc>0
+`if sc<array count(sparky())
+sobj=sparky(sc).obj
+if objectexist(sobj)=1
+scpx#=object position x(sobj) : scpy#=object position y(sobj) :  scpz#=object position z(sobj)
+scax#=object angle x(sobj) : scay#=object angle y(sobj) : scaz#=object angle z(sobj)
+if scpx#<>sparky(sc).px or scpy#<>sparky(sc).py or scpz#<>sparky(sc).pz or scax#<>sparky(sc).rx or scay#<>sparky(sc).ry or scaz#<>sparky(sc).rz
+sc_updateobject sparky(sc).obj
+sparky(sc).px=scpx# : sparky(sc).py=scpy# : sparky(sc).pz=scpz#
+sparky(sc).rx=scax# : sparky(sc).ry=scay# : sparky(sc).rz=scaz#
+endif
+endif
+`else
+`array delete element sparkydynamic(),scd
+`endif
+else
+array delete element sparkydynamic(),scd
+endif
+next scd
+
+sparkytime=timer()
+endif
+endfunction
+
+function sc_raycastgroupdirection(tgroup,posx as float,posy as float,posz as float,directionx as float,directiony as float,directionz as float,tdistance as float)
+gosub _sparky_collision_core_init
+gosub _basic_functions_init
+position object positioncube,posx,posy,posz
+rotate object positioncube,directionx,directiony,directionz
+move object positioncube,tdistance
+rc=sc_raycastgroup(tgroup,posx,posy,posz,object position x(positioncube),object position y(positioncube),object position z(positioncube),0)
+endfunction rc

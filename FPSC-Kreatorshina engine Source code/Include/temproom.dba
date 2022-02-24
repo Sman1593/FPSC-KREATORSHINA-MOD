@@ -1,0 +1,131 @@
+Rem ***** Included Source File *****
+
+_temproominit:
+if temproominit=0
+
+`walls list
+if fileexist("temp\walltextures.txt")
+fileid=find free file()
+dim walltextureslist(0) as string
+open to read fileid,"temp\walltextures.txt"
+while file end(fileid)=0
+read string fileid,tmpstring$
+if tmpstring$<>""
+if fileexist(tmpstring$)
+array insert at bottom walltextureslist()
+a=array count(walltextureslist())
+walltextureslist(a)=tmpstring$
+tmpimg=loadimage(tmpstring$,0)
+tmpimg=loadimage(texture_n(tmpstring$),0)
+tmpimg=loadimage(texture_s(tmpstring$),0)
+endif
+endif
+endwhile
+close file fileid
+endif
+
+`floors list
+if fileexist("temp\floortextures.txt")
+fileid=find free file()
+dim floortextureslist(0) as string
+open to read fileid,"temp\floortextures.txt"
+while file end(fileid)=0
+read string fileid,tmpstring$
+if tmpstring$<>""
+if fileexist(tmpstring$)
+array insert at bottom floortextureslist()
+a=array count(floortextureslist())
+floortextureslist(a)=tmpstring$
+tmpimg=loadimage(tmpstring$,0)
+tmpimg=loadimage(texture_n(tmpstring$),0)
+tmpimg=loadimage(texture_s(tmpstring$),0)
+endif
+endif
+endwhile
+close file fileid
+endif
+
+if fileexist("temp\testroom.dbo")
+testroom=loadobject("temp\testroom.dbo","",0,0)
+position object testroom,0,1000,0
+set object effect testroom,1
+
+`texture object
+texture$=walltextureslist(1)
+texturen$=texture_n(texture$)
+textures$=texture_s(texture$)
+tmpimg=kmloadimage(texture$,0,0)
+texture limb testroom,0,0,tmpimg
+tmpimg=kmloadimage(texturen$,0,0)
+texture limb testroom,0,1,tmpimg
+tmpimg=kmloadimage(textures$,0,0)
+texture limb testroom,0,2,tmpimg
+
+texture$=floortextureslist(1)
+texturen$=texture_n(texture$)
+textures$=texture_s(texture$)
+tmpimg=kmloadimage(texture$,0,0)
+texture limb testroom,1,0,tmpimg
+tmpimg=kmloadimage(texturen$,0,0)
+texture limb testroom,1,1,tmpimg
+tmpimg=kmloadimage(textures$,0,0)
+texture limb testroom,1,2,tmpimg
+km_Object_SetMask(testroom,1,1,1,1)
+
+endif
+
+global currentwalltexture=1
+global currentfloortexture=1
+global nowselect
+
+global temproominit=1
+endif
+return
+
+
+_temproomupdate:
+
+if keypressed(73)=1
+if nowselect=0 then nowselect=1 else nowselect=0
+endif
+
+wallchanged=0 : floorchanged=0
+text 0,40,"[num9=wall or floor] [num -,+ choose texture]"
+if nowselect=0
+if keypressed(78)=1 then inc currentwalltexture : wallchanged=1
+if keypressed(74)=1 then dec currentwalltexture : wallchanged=1
+currentwalltexture=redusevalue(currentwalltexture,1,array count(walltextureslist()))
+text 0,50,"wall "+str$(currentwalltexture)+" ["+walltextureslist(currentwalltexture)+"]"
+else
+if keypressed(78)=1 then inc currentfloortexture : floorchanged=1
+if keypressed(74)=1 then dec currentfloortexture : floorchanged=1
+currentfloortexture=redusevalue(currentfloortexture,1,array count(floortextureslist()))
+text 0,50,"floor "+str$(currentfloortexture)+" ["+floortextureslist(currentfloortexture)+"]"
+endif
+
+`change texture if needed
+if wallchanged=1
+texture$=walltextureslist(currentwalltexture)
+texturen$=texture_n(texture$)
+textures$=texture_s(texture$)
+tmpimg=kmloadimage(texture$,0,0)
+texture limb testroom,0,0,tmpimg
+tmpimg=kmloadimage(texturen$,0,0)
+texture limb testroom,0,1,tmpimg
+tmpimg=kmloadimage(textures$,0,0)
+texture limb testroom,0,2,tmpimg
+endif
+if floorchanged=1
+texture$=floortextureslist(currentfloortexture)
+texturen$=texture_n(texture$)
+textures$=texture_s(texture$)
+tmpimg=kmloadimage(texture$,0,0)
+texture limb testroom,1,0,tmpimg
+tmpimg=kmloadimage(texturen$,0,0)
+texture limb testroom,1,1,tmpimg
+tmpimg=kmloadimage(textures$,0,0)
+texture limb testroom,1,2,tmpimg
+endif
+
+
+return

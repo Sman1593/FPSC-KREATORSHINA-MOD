@@ -1,0 +1,66 @@
+Rem Project: segments_convet
+Rem Created: Wednesday, August 01, 2018
+rem автор sman
+
+`глобальные
+`global cddir$ as string : cddir$="D:\serega\Program Files\FPS Creator\Files" : cd cddir$
+global bindir$ : bindir$=get dir$()
+lastchar=find last char$(bindir$,"\")
+global filesdir$ : filesdir$=left$(bindir$,lastchar)+"Files"
+global cddir$ as string : cddir$=filesdir$ : cd cddir$
+
+gosub _setup_mod
+texturequality=0
+set display mode 800,600,32,1
+sync on : sync rate 60 : autocam off `: hide mouse
+set camera range 1,64000
+set text font TEXT FONT$(),language
+OPEN CONSOLE
+
+loading()
+for room=1 to 500
+filename$="temp\segments\room_"+str$(room)+".dbo"
+deletefile(filename$)
+tmeshfile$=newformat(filename$,".TMESH")
+deletefile(tmeshfile$)
+next room
+
+makefolders("temp\segments\")
+loadentity()
+gosub _myconvert_entity
+fpscloadsegments()
+
+do
+
+if keypressed(27)=1
+for fseg=0 to array count(fss())
+if objectexist(fss(fseg).obj)=1 then set object wireframe fss(fseg).obj,1
+next fseg
+endif
+
+if keypressed(26)=1
+for fseg=0 to array count(fss())
+if objectexist(fss(fseg).obj)=1 then set object wireframe fss(fseg).obj,0
+next fseg
+endif
+
+if segments_prosmotr=0 then exit
+textypos=0
+
+freecam(0.7)
+fixfpsUpdate()
+displayvisualobjects(camera position x(0),camera position y(0),camera position z(0))
+z=POINT IN ZONE GROUP(camera position x(0),camera position y(0),camera position z(0),1)
+if z>0 then pz=portalzones(z).room
+text 100,200,"zone="+str$(z)
+text 100,210,"group="+str$(pz)
+
+text 100,100,"minx="+str$(minx)
+text 100,110,"maxx="+str$(maxx)
+text 100,120,"miny="+str$(miny)
+text 100,130,"maxy="+str$(maxy)
+
+sync mask 2^0
+sync
+loop
+end

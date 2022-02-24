@@ -1,0 +1,726 @@
+
+_charactercontrollerinit:
+if charcinit=0
+global charcinit as boolean
+global charactertime as float
+global cameraheight as float
+global camerascale#
+global cameracount as boolean
+global cameracurve#
+global cameracurvex#
+global cameracurvey#
+global cameraposx#
+global cameraposy#
+global cameraposz#
+global oldfeet as integer
+global oldxplayer#
+global oldyplayer#
+global oldzplayer#
+global cameraheight#
+global plrwalk as boolean
+global torso as xyztype
+
+global chrstime as integer
+global cameraback as float
+global camerafore as float
+
+global lastcamx as float
+global lastcamy as float
+global lastcamz as float
+global camcollide
+
+`===========character controller===========
+plrheight#=40
+global radius# as float : radius# = 10.0
+global stair#
+global vx# as float
+global vy# as float
+global vz# as float
+global filter# : filter#=4
+global mmx# as float
+global mmy# as float
+global mmz# as float
+
+global rx# as float
+global ry# as float
+global rz# as float
+
+global ccolx# as float
+global ccoly# as float
+global ccolz# as float
+global cdist#
+
+global tangle
+global gravity# as float : gravity# = -0.3
+global slope# as float : slope# = 0.75
+global ground as integer : ground = 1
+global jumptimer as integer : jumptimer = 0
+global cmb# : cmb=200
+global syncmode as integer : syncmode = 60
+global view as integer : view = 0
+global hide as integer : hide = 0
+global speed#
+global stairlimit# : stairlimit#=15
+global offsety#
+global offsetystate#
+global walkplrspeed# : walkplrspeed#=16.6
+global GG
+
+global leftupleg#
+
+dim player(20) as integer
+`=========character controller====================
+
+type controllermovetype
+fore as boolean
+back as boolean
+left as boolean
+right as boolean
+jump as boolean
+crouch as boolean
+crouchspeed as float
+walkspeed as float
+runspeed as float
+sprintspeed as float
+endtype
+
+type limbstype
+head as integer `Bip01_Head
+Neck as integer `Bip01_Neck
+Spine2 as integer `Bip01_Spine2
+Spine1 as integer `Bip01_Spine1
+Spine as integer `Bip01_Spine
+LArm as integer `Bip01_L_UpperArm
+RArm as integer `Bip01_R_UpperArm
+RFarm as integer `Bip01_R_Forearm
+LFarm as integer `Bip01_L_Forearm
+LThigh as integer `"Bip01_L_Thigh")
+LCalf as integer `"Bip01_L_Calf")
+LFoot as integer `"Bip01_L_Foot")
+LToe0 as integer `"Bip01_L_Toe0")
+RThigh as integer `"Bip01_R_Thigh")
+RCalf as integer `"Bip01_R_Calf")
+RFoot as integer `"Bip01_R_Foot")
+RToe0 as integer `"Bip01_R_Toe0")
+endtype
+
+type controllertype
+move as controllermovetype
+distance as float
+feet as integer
+limb as limbstype
+anim as interpolationtype
+obj as integer
+obja as integer
+radius as float
+height as float
+crouchheight as float
+standheight as float
+underwater as boolean
+crouch as byte
+position as xyztype
+velocity as xyztype
+rotate as xyztype
+angle as xyztype
+normal as xyztype
+mass as float
+speed as float
+swim as float
+jumpt as integer
+jumpstate as byte
+jumpheight as float
+kinematic as boolean
+ground as integer
+slope as float
+slide as float
+smooth as float
+dyncollide as integer
+material as integer
+endtype
+
+dim chcontroller(0) as controllertype
+charcinit=1
+endif
+return
+
+function makecharacter(obj,height#,radius#)
+if objectexist(obj)
+gosub _charactercontrollerinit
+array insert at bottom chcontroller()
+chr=array count(chcontroller())
+chcontroller(chr).obj=obj
+px#=object position x(obj)
+py#=(object position y(obj)+object collision center y(obj))+(chcontroller(chr).height*0.5)
+pz#=object position z(obj)
+
+`hideobject(obj)
+if radius#=0
+chcontroller(chr).radius=(object size z(chcontroller(chr).obj,1)*1.2)
+else
+chcontroller(chr).radius=radius#
+endif
+
+if height#=0
+chcontroller(chr).height=object size y(chcontroller(chr).obj,1)
+else
+chcontroller(chr).height=height#
+endif
+
+chcontroller(chr).standheight=chcontroller(chr).height
+chcontroller(chr).crouchheight=chcontroller(chr).height*0.5
+chcontroller(chr).slope=slope#
+`chcontroller(chr).obja=makeobjectbox(chcontroller(chr).radius*2,chcontroller(chr).height-(chcontroller(chr).radius*1),chcontroller(chr).radius*2)
+chcontroller(chr).obja=makeobjectbox(chcontroller(chr).radius*2,chcontroller(chr).height,chcontroller(chr).radius*2)
+chcontroller(chr).mass=object size(chcontroller(chr).obj,1)*10
+if chcontroller(chr).mass<1 then chcontroller(chr).mass=1
+dens#=chcontroller(chr).mass
+
+hideobject(chcontroller(chr).obja)
+ghost object on chcontroller(chr).obja,2
+position object chcontroller(chr).obja,px#,py#,pz#
+rotate object chcontroller(chr).obja,0,chcontroller(chr).rotate.y,0
+rotate limb obj,0,0,180,0
+
+
+dyn make capsule chcontroller(chr).obja,chcontroller(chr).height-(chcontroller(chr).radius*2),chcontroller(chr).radius,dens#
+`dyn make box chcontroller(chr).obja,1
+dyn freeze rotation x chcontroller(chr).obja,1
+dyn freeze rotation y chcontroller(chr).obja,1
+dyn freeze rotation z chcontroller(chr).obja,1
+
+dyn make material chcontroller(chr).obja,0,0,0
+`dyn material set flags chcontroller(chr).obja,1
+dyn material set flags chcontroller(chr).obja,16
+`dyn material set flags chcontroller(chr).obja,32
+
+dyn set material chcontroller(chr).obja,0,chcontroller(chr).obja
+
+dyn set shape group chcontroller(chr).obja,0,5
+dyn set group chcontroller(chr).obja,5
+dyn update mass from shapes chcontroller(chr).obja,dens#,chcontroller(chr).mass
+dyn enable gravity chcontroller(chr).obja,1
+dyn set linear velocity chcontroller(chr).obja,0,0,0
+`spine
+chcontroller(chr).limb.head=findlimb(chcontroller(chr).obj,"Bip01_Head")
+chcontroller(chr).limb.Neck=findlimb(chcontroller(chr).obj,"Bip01_Neck")
+chcontroller(chr).limb.Spine2=findlimb(chcontroller(chr).obj,"Bip01_Spine2")
+chcontroller(chr).limb.Spine1=findlimb(chcontroller(chr).obj,"Bip01_Spine1")
+chcontroller(chr).limb.Spine=findlimb(chcontroller(chr).obj,"Bip01_Spine")
+`hands
+chcontroller(chr).limb.LArm=findlimb(chcontroller(chr).obj,"Bip01_L_UpperArm")
+chcontroller(chr).limb.RArm=findlimb(chcontroller(chr).obj,"Bip01_R_UpperArm")
+chcontroller(chr).limb.RFarm=findlimb(chcontroller(chr).obj,"Bip01_R_Forearm")
+chcontroller(chr).limb.LFarm=findlimb(chcontroller(chr).obj,"Bip01_L_Forearm")
+`legs
+`Lleg
+chcontroller(chr).limb.LThigh=findlimb(chcontroller(chr).obj,"Bip01_L_Thigh")
+chcontroller(chr).limb.LCalf=findlimb(chcontroller(chr).obj,"Bip01_L_Calf")
+chcontroller(chr).limb.LFoot=findlimb(chcontroller(chr).obj,"Bip01_L_Foot")
+chcontroller(chr).limb.LToe0=findlimb(chcontroller(chr).obj,"Bip01_L_Toe0")
+`Rleg
+chcontroller(chr).limb.RThigh=findlimb(chcontroller(chr).obj,"Bip01_R_Thigh")
+chcontroller(chr).limb.RCalf=findlimb(chcontroller(chr).obj,"Bip01_R_Calf")
+chcontroller(chr).limb.RFoot=findlimb(chcontroller(chr).obj,"Bip01_R_Foot")
+chcontroller(chr).limb.RToe0=findlimb(chcontroller(chr).obj,"Bip01_R_Toe0")
+
+chcontroller(chr).move.crouchspeed=30
+chcontroller(chr).move.walkspeed=40
+chcontroller(chr).move.runspeed=60
+chcontroller(chr).move.sprintspeed=300
+chcontroller(chr).jumpheight=100
+endif
+endfunction chr
+
+function updatecharacters()
+
+for chr=1 to array count(chcontroller())
+tvx#=0 : tvz#=0 : vx#=0 : vy#=0 : vz#=0 : airv#=0.1 : kvx#=0 : kvy#=0 : kvz#=0 : smooth#=2.5
+obj=chcontroller(chr).obja
+if objectexist(obj)=1
+`get position of phyobject
+oldx# = object position x(obj) : oldy# = object position y(obj) : oldz# = object position z(obj)
+tframe#=object frame(chcontroller(chr).obj)
+`get linear velocity vector
+dyn get linear velocity obj,Dynpos
+olvx#=x vector3(Dynpos) : olvy#=y vector3(Dynpos) : olvz#=z vector3(Dynpos)
+
+freefall=1 : jumpheight#=0 : nx#=0 : ny#=0 : nz#=0 : rnx#=0 : rny#=0 : rnz#=0 : dynamic=0 : tmass#=0 : dynamic=0
+dyn enable gravity obj,0 : phycollide=findphycollide(obj,0)
+`-------------ON THE GROUND-------------------
+if chcontroller(chr).underwater=0
+if oldy#+(chcontroller(chr).height*0.4)<waterlevel then chcontroller(chr).underwater=1 else chcontroller(chr).underwater=0
+chcontroller(chr).angle.x=curveangle(0,chcontroller(chr).angle.x,20)
+chcontroller(chr).angle.y=curveangle(chcontroller(chr).rotate.y,chcontroller(chr).angle.y,20)
+chcontroller(chr).angle.z=curveangle(0,chcontroller(chr).angle.z,20)
+`get moving vector vx,vz
+if chcontroller(chr).move.back=1 then tvx# = -sin(chcontroller(chr).rotate.y) : tvz# = -cos(chcontroller(chr).rotate.y)
+if chcontroller(chr).move.fore=1 then tvx# = sin(chcontroller(chr).rotate.y) : tvz# = cos(chcontroller(chr).rotate.y)
+if chcontroller(chr).move.right=1 then tvx# = cos(chcontroller(chr).rotate.y) : tvz# = -sin(chcontroller(chr).rotate.y)
+if chcontroller(chr).move.left=1 then tvx# = -cos(chcontroller(chr).rotate.y) : tvz# = sin(chcontroller(chr).rotate.y)
+if chcontroller(chr).move.fore=1 and chcontroller(chr).move.right=1 then tvx# = cos(chcontroller(chr).rotate.y-45) : tvz# = -sin(chcontroller(chr).rotate.y-45)
+if chcontroller(chr).move.fore=1 and chcontroller(chr).move.left=1 then tvx# = -cos(chcontroller(chr).rotate.y+45) : tvz# = sin(chcontroller(chr).rotate.y+45)
+if chcontroller(chr).move.back=1 and chcontroller(chr).move.right=1 then tvx# = cos(chcontroller(chr).rotate.y+45) : tvz# = -sin(chcontroller(chr).rotate.y+45)
+if chcontroller(chr).move.back=1 and chcontroller(chr).move.left=1 then tvx# = -cos(chcontroller(chr).rotate.y-45) : tvz# = sin(chcontroller(chr).rotate.y-45)
+vx#=(tvx#*chcontroller(chr).speed) : vy#=0 : vz#=(tvz#*chcontroller(chr).speed)
+`=============================MAIN MOVE "LOGIC"=====================================================
+oldground#=chcontroller(chr).ground : pobject=0
+if chcontroller(chr).kinematic=1 then yoffset#=20 else yoffset#=0.5
+collide = sc_sphereslidegroup(1,oldx#,oldy#,oldz#,oldx#,oldy#-((chcontroller(chr).height*0.5)-chcontroller(chr).radius)-yoffset#,oldz#,chcontroller(chr).radius,0)
+if collide>0 `or phycollide>0
+gdist#=sc_getcollisiondistance()-((chcontroller(chr).height*0.5)-chcontroller(chr).radius)
+`----------------------------PLATFORMS AND LIFTS----------------------------
+if chcontroller(chr).move.jump=0 or chcontroller(chr).jumpstate=0
+chcontroller(chr).kinematic=0 : phyobject=sc_getobjecthit()
+if phyobject>0
+if dyn actor exists(phyobject)
+if dyn is dynamic(phyobject)
+dynamic=1
+if dyn body read flag(phyobject,NX_BF_KINEMATIC)>0
+dyn get linear velocity phyobject,Dynpos
+kvx#=x vector3(Dynpos) : kvy#=y vector3(Dynpos) : kvz#=z vector3(Dynpos) : chcontroller(chr).kinematic=1 `: smooth#=1
+endif : endif : endif : endif : endif
+`----------------------------GROUND-----------------------------
+if kvy#<>0 and chcontroller(chr).jumpstate=0 then glimit#=abs(kvy#*0.1) else glimit#=1
+glimit#=redusevalue(glimit#,1,20)
+if gdist#<glimit#
+chcontroller(chr).ground=1 : nx# = sc_getcollisionnormalx() : ny# = sc_getcollisionnormaly() : nz# = sc_getcollisionnormalz()
+if kvy#>0 then vy#=-(kvy#+(gdist#*100)) : olvy#=0
+`Extra raycast in case of stucking
+if chcontroller(chr).normal.y<chcontroller(chr).slope
+rcollide = sc_raycastgroup(1,oldx#,oldy#,oldz#,oldx#,oldy#-((chcontroller(chr).height*0.5)+chcontroller(chr).radius),oldz#,0)
+if rcollide>0 then rnx# = sc_getcollisionnormalx() : rny# = sc_getcollisionnormaly() : rnz# = sc_getcollisionnormalz()
+endif
+if chcontroller(chr).normal.y>chcontroller(chr).slope or rny#>chcontroller(chr).slope
+`--------------JUMP ACTION-----------------------
+chcontroller(chr).jumpstate=0 : olvy#=0 : freefall=0
+if chcontroller(chr).move.jump=1 then jumpheight#=chcontroller(chr).jumpheight : chcontroller(chr).jumpstate=1 : freefall=1 : kvx#=0 : kvy#=0 : kvz#=0
+endif
+else
+dec chcontroller(chr).ground
+endif
+else
+dec chcontroller(chr).ground
+endif
+`-------------to be able jump on platforms-----------------
+if chcontroller(chr).ground<=0 then kvx#=0 : kvy#=0 : kvz#=0
+````````````````````````````STAIRS CODE =D```````````````
+if abs(vx#)>0 or abs(vz#)>0
+scollide = sc_raycastgroup(1,oldx#+(tvx#*(chcontroller(chr).radius)*1),oldy#+(chcontroller(chr).height*0.5),oldz#+(tvz#*(chcontroller(chr).radius)*1),oldx#+(tvx#*(chcontroller(chr).radius*1.25)),oldy#-((chcontroller(chr).height*0.5)+40),oldz#+(tvz#*(chcontroller(chr).radius*1.25)),0)
+if scollide>0
+stairobj=sc_getobjecthit()
+if objectsize(stairobj)>30
+stairx#=(chcontroller(chr).height)-sc_getcollisiondistance() : sny#=sc_getcollisionnormaly()
+if (stairx#>3 and stairx#<15) and sny#>0.9 then jumpheight#=(stairx#*8) : freefall=0 : olvy#=0
+endif : endif
+endif
+
+`down stair move
+if (oldground#=1 and chcontroller(chr).ground<=0) and stairx#<-3
+dec olvy#
+if chcontroller(chr).jumpstate=0 and sny#>0.98
+freefall=0 : jumpheight#=(stairx#)*1.5
+if chcontroller(chr).speed>30 then vx#=vx#*0.5 : vz#=vz#*0.5
+endif : endif
+
+else `-----------UNDER WATER CONTROLS------------------
+if oldy#+(chcontroller(chr).height*0.4)>waterlevel then chcontroller(chr).underwater=0 : exit
+freefall=0 : tmove=0 : chcontroller(chr).ground=1
+``================================================
+position object positioncube,oldx#,oldy#,oldz#
+rotate object positioncube,chcontroller(chr).rotate.x,chcontroller(chr).rotate.y,chcontroller(chr).rotate.z
+if chcontroller(chr).move.fore=1 then move object positioncube,1 : tmove=1
+if chcontroller(chr).move.back=1 then move object positioncube,-1 : tmove=1
+if chcontroller(chr).move.left=1 then move object left positioncube,1 : tmove=1
+if chcontroller(chr).move.right=1 then move object right positioncube,1 : tmove=1
+vx#=((object position x(positioncube)-object position x(obj))*chcontroller(chr).speed*(1.4-chcontroller(chr).swim))
+vy#=((object position y(positioncube)-object position y(obj))*chcontroller(chr).speed*(1.4-chcontroller(chr).swim))
+vz#=((object position z(positioncube)-object position z(obj))*chcontroller(chr).speed*(1.4-chcontroller(chr).swim))
+inc chcontroller(chr).swim,0.006
+if chcontroller(chr).swim>0.6 then chcontroller(chr).swim=0
+if tmove=0 then chcontroller(chr).speed=0 : chcontroller(chr).swim=0 : vx#=olvx#*0.97 : vy#=olvy#*0.97 : vz#=olvz#*0.97
+if oldy#+(chcontroller(chr).height*0.4)>waterlevel-5 and vy#>0 then vy#=0
+chcontroller(chr).angle.x=curveangle(chcontroller(chr).speed*0.35*(1.0-chcontroller(chr).swim),chcontroller(chr).angle.x,40)
+chcontroller(chr).angle.y=curveangle(chcontroller(chr).rotate.y,chcontroller(chr).angle.y,20)
+chcontroller(chr).angle.z=0
+endif `----------UNDER WATER CONTROLS END------------------
+
+lvx#=vx# : lvy#=vy# : lvz#=vz#
+`if dynamic=1
+
+`-----------------FREE FALL FUNCTION `freefall + air controll + slide------------------
+if freefall=1
+dyn enable gravity obj,1
+lvx#=olvx#-((chcontroller(chr).velocity.x-vx#)*0.25) : lvy#=olvy# : lvz#=olvz#-((chcontroller(chr).velocity.z-vz#)*0.25)
+endif
+
+`-------------animation beta----------------
+
+if chcontroller(chr).underwater=0
+if chcontroller(chr).ground=1
+if (abs(vx#)>0 or abs(vz#)>0) then loopcharacter(chr,235,259,chcontroller(chr).speed*0.5,10) else loopcharacter(chr,211,234,10,10)
+else
+if chcontroller(chr).jumpstate=1 then playcharacter(chr,196,210,10,20)
+if chcontroller(chr).ground<-12 and chcontroller(chr).jumpstate<>1 then loopcharacter(chr,444,464,10,10)
+endif
+else
+loopcharacter(chr,463,492,10+(chcontroller(chr).speed*0.2*chcontroller(chr).swim),10)
+endif
+
+`APPLY FORCES
+rotate object obj,chcontroller(chr).angle.x,chcontroller(chr).angle.y,chcontroller(chr).angle.z
+dyn set rotation obj,chcontroller(chr).angle.x,chcontroller(chr).angle.y,chcontroller(chr).angle.z
+dyn set linear velocity obj,(lvx#+kvx#),(lvy#+kvy#+jumpheight#),(lvz#+kvz#)
+
+if abs(vx#)>0 or abs(vy#)>0 or abs(vz#)>0
+chcontroller(chr).smooth=curvevalue(smooth#,chcontroller(chr).smooth,4)
+else
+chcontroller(chr).smooth=curvevalue(0,chcontroller(chr).smooth,4)
+endif
+
+if chr=plr then text 500,500,str$(chcontroller(chr).smooth)
+
+`get and set positions for visual object
+chcontroller(chr).position.x=curvevalue(object position x(obj),chcontroller(chr).position.x,chcontroller(chr).smooth)
+chcontroller(chr).position.y=curvevalue(object position y(obj),chcontroller(chr).position.y,chcontroller(chr).smooth)
+chcontroller(chr).position.z=curvevalue(object position z(obj),chcontroller(chr).position.z,chcontroller(chr).smooth)
+
+position object chcontroller(chr).obj,chcontroller(chr).position.x,chcontroller(chr).position.y,chcontroller(chr).position.z
+move object down chcontroller(chr).obj,(chcontroller(chr).height*0.5)
+rotate object chcontroller(chr).obj,object angle x(obj),object angle y(obj),object angle z(obj)
+
+`zero all controlls
+chcontroller(chr).move.back=0
+chcontroller(chr).move.fore=0
+chcontroller(chr).move.right=0
+chcontroller(chr).move.left=0
+chcontroller(chr).move.jump=0
+chcontroller(chr).normal.x = nx#
+chcontroller(chr).normal.y = ny#
+chcontroller(chr).normal.z = nz#
+chcontroller(chr).velocity.x=vx#
+chcontroller(chr).velocity.y=vy#
+chcontroller(chr).velocity.z=vz#
+
+endif
+next chr
+
+endfunction
+
+function setcharacterheight(chr,height#)
+if chr>0 and chr<=array count(chcontroller())
+if objectexist(chcontroller(chr).obja)=1
+`get position of object
+px#=object position x(chcontroller(chr).obja)
+py#=object position y(chcontroller(chr).obja)
+pz#=object position z(chcontroller(chr).obja)
+
+ax#=object angle x(chcontroller(chr).obja)
+ay#=object angle y(chcontroller(chr).obja)
+az#=object angle z(chcontroller(chr).obja)
+
+`get mass and velocity vector
+if DYN ACTOR EXISTS(chcontroller(chr).obja,0)>0
+tmass#=dyn get mass(chcontroller(chr).obja,0)
+dyn get linear velocity chcontroller(chr).obja,Dynpos
+lvx#=x vector3(Dynpos)
+lvy#=y vector3(Dynpos)
+lvz#=z vector3(Dynpos)
+endif
+`check if got nothing under character
+rayc = sc_spherecastgroup(1,px#,py#,pz#,px#,((py#-(chcontroller(chr).height*0.5))+height#)+1,pz#,chcontroller(chr).radius*0.9,0)
+if rayc=0 and height#<>chcontroller(chr).height
+dyn delete actor chcontroller(chr).obja
+delete object chcontroller(chr).obja
+if height#<chcontroller(chr).height
+newy#=(height#-chcontroller(chr).height)*0.5
+else
+newy#=(height#-chcontroller(chr).height)*0.5
+endif
+chcontroller(chr).height=height#
+chcontroller(chr).obja=makeobjectbox(chcontroller(chr).radius*2,chcontroller(chr).height-(chcontroller(chr).radius*1),chcontroller(chr).radius*2)
+
+`	ghost object on chcontroller(chr).obja,2
+hideobject(chcontroller(chr).obja)
+
+position object chcontroller(chr).obja,px#,py#+newy#,pz#
+rotate object chcontroller(chr).obja,ax#,ay#,az#
+
+dyn make capsule chcontroller(chr).obja,chcontroller(chr).height-(chcontroller(chr).radius*2),chcontroller(chr).radius,1
+dyn freeze rotation x chcontroller(chr).obja,1
+dyn freeze rotation y chcontroller(chr).obja,1
+dyn freeze rotation z chcontroller(chr).obja,1
+
+dyn set material chcontroller(chr).obja,0,chcontroller(chr).obja
+dyn set shape group chcontroller(chr).obja,0,5
+dyn set group chcontroller(chr).obja,5
+dyn update mass from shapes chcontroller(chr).obja,0.1,tmass#
+dyn enable gravity chcontroller(chr).obja,0
+`dyn set position chcontroller(chr).obja,px#,py#+newy#,pz#
+`dyn set rotation chcontroller(chr).obja,0,0,0
+dyn set linear velocity chcontroller(chr).obja,chcontroller(chr).velocity.x,chcontroller(chr).velocity.y,chcontroller(chr).velocity.z
+
+else
+exitfunction 0
+endif
+
+endif
+endif
+endfunction 1
+
+function teleportcharacter(chr,px#,py#,pz#)
+if chr>0 and chr<=array count(chcontroller())
+if objectexist(chcontroller(chr).obja)=1
+
+py#=py#+chcontroller(chr).height*0.5
+`get mass and velocity vector
+tmass#=dyn get mass(chcontroller(chr).obja,0)
+dyn get linear velocity chcontroller(chr).obja,Dynpos
+lvx#=x vector3(Dynpos)
+lvy#=y vector3(Dynpos)
+lvz#=z vector3(Dynpos)
+`check if got nothing under character
+rayc = sc_raycastgroup(1,px#,py#,pz#,px#,((py#-(chcontroller(chr).height*0.5))+chcontroller(chr).height)+1,pz#,0)
+if rayc=0
+dyn delete actor chcontroller(chr).obja
+delete object chcontroller(chr).obja
+
+chcontroller(chr).obja=makeobjectbox(chcontroller(chr).radius*2,chcontroller(chr).height-(chcontroller(chr).radius*1),chcontroller(chr).radius*2)
+
+`ghost object on chcontroller(chr).obja,2
+hideobject(chcontroller(chr).obja)
+position object chcontroller(chr).obja,px#,py#+chcontroller(chr).height*0.5,pz#
+rotate object chcontroller(chr).obja,0,chcontroller(chr).rotate.y,0
+
+dyn make capsule chcontroller(chr).obja,chcontroller(chr).height-(chcontroller(chr).radius*2),chcontroller(chr).radius,1
+dyn freeze rotation x chcontroller(chr).obja,1
+dyn freeze rotation y chcontroller(chr).obja,1
+dyn freeze rotation z chcontroller(chr).obja,1
+
+dyn set material chcontroller(chr).obja,0,chcontroller(chr).obja
+dyn set shape group chcontroller(chr).obja,0,5
+dyn set group chcontroller(chr).obja,5
+dyn update mass from shapes chcontroller(chr).obja,0.1,tmass#
+dyn enable gravity chcontroller(chr).obja,0
+dyn set linear velocity chcontroller(chr).obja,lvx#,lvy#,lvz#
+
+endif
+endif
+endif
+endfunction
+
+function playercontrolls(chr,thirdperson)
+if GetActiveWindow()<>0
+if chr>0 and chr<=array count(chcontroller())
+obj=chcontroller(chr).obj : yangle#=0 : tmove=0
+obja=chcontroller(chr).obja
+Head=chcontroller(chr).limb.head
+Neck=chcontroller(chr).limb.Neck
+Spine2=chcontroller(chr).limb.Spine2
+Spine1=chcontroller(chr).limb.Spine1
+Spine=chcontroller(chr).limb.Spine
+LArm=chcontroller(chr).limb.LArm
+RArm=chcontroller(chr).limb.RArm
+RFArm=chcontroller(chr).limb.RFarm
+LFArm=chcontroller(chr).limb.LFarm
+
+freecamacx#=curvevalue(freecamacx#+mousemovey()*0.4,freecamacx#,4)
+freecamacy#=curveangle(freecamacy#+mousemovex()*0.4,freecamacy#,4)
+cameraback=cameraback+(mousemovez()*0.01)
+if freecamacx#>85 then freecamacx#=85
+if freecamacx#<-85  then freecamacx#=-85
+rotate camera freecamacx#,freecamacy#,0
+
+opx#=limb position x(obj,head) : opy#=limb position y(obj,head) : opz#=limb position z(obj,head)
+oldcpx#=camera position x() : oldcpy#=camera position y() : oldcpz#=camera position z()
+position camera opx#,opy#,opz#
+
+if keystate(57)=1 then character_jump(chr)
+
+if chcontroller(chr).move.crouch=0
+if tmove=1
+chcontroller(chr).speed=curvevalue(chcontroller(chr).move.walkspeed,chcontroller(chr).speed,10)
+else
+chcontroller(chr).speed=curvevalue(chcontroller(chr).move.runspeed,chcontroller(chr).speed,10)
+endif
+if keystate(42)=1 and chcontroller(chr).move.back=0 then chcontroller(chr).speed=curvevalue(chcontroller(chr).move.sprintspeed,chcontroller(chr).speed,10)
+else
+chcontroller(chr).speed=curvevalue(chcontroller(chr).move.crouchspeed,chcontroller(chr).speed,10)
+endif
+
+if thirdperson=1
+
+move camera cameraback
+move camera right object size x(obj)*0.25
+
+camr=sc_spherecastgroup(1,opx#,opy#,opz#,camera position x(),camera position y(),camera position z(),chcontroller(chr).radius*0.1,0)
+camd#=distance(opx#,opy#,opz#,camera position x(),camera position y(),camera position z())
+if camr>0
+tcd#=wrap(tcd#,chcontroller(chr).radius,sc_getcollisiondistance())
+position camera sc_getstaticcollisionx(),sc_getstaticcollisiony(),sc_getstaticcollisionz()
+camerafore=curvevalue(camd#-tcd#,camerafore,20)
+else
+camerafore=curvevalue(0,camerafore,40)
+endif
+
+if keystate(30)=1 then dec yangle#,90 : tmove=1 : xr#=1
+if keystate(32)=1 then inc yangle#,90 : tmove=1 : xr#=1
+if keystate(17)=1 then yangle#=yangle#*0.5 : tmove=1 : xr#=1
+if keystate(31)=1 then yangle#=(180-(yangle#*0.5)) : tmove=1 : xr#=-1
+if tmove>0
+character_rotate(chr,freecamacx#*xr#,freecamacy#+yangle#,0)
+character_move_fore(chr)
+endif
+
+tmpy#=-(yangle#*0.5)
+tmpy#=redusevalue(tmpy#,-25,25)
+
+scale limb obj,RArm,100,100,100
+scale limb obj,LArm,100,100,100
+
+else
+rotate camera 0,freecamacy#,0
+move camera chcontroller(chr).radius*0.75
+camr=sc_spherecastgroup(1,opx#,opy#,opz#,camera position x(),camera position y(),camera position z(),chcontroller(chr).radius*0.2,0)
+if camr>0 then position camera sc_getstaticcollisionx(),sc_getstaticcollisiony(),sc_getstaticcollisionz()
+
+`move camera up (chcontroller(chr).radius*0.5)
+rotate camera freecamacx#,freecamacy#,0
+tmpx#=0 : tmpy#=0 : tmpz#=0
+if keystate(17)=1 and keystate(30)=1 then tcy#=-45 : character_move_fore(chr)
+if keystate(17)=1 and keystate(32)=1 then tcy#=45 : character_move_fore(chr)
+if keystate(31)=1 and keystate(30)=1 then tcy#=45 : character_move_back(chr)
+if keystate(31)=1 and keystate(32)=1 then tcy#=-45 : character_move_back(chr)
+
+if (keystate(17)=0 and keystate(31)=0)
+if keystate(30)=1 or keystate(32)=1
+if keystate(30)=1 then tcy#=-89 : character_move_fore(chr) : tmpy#=35
+if keystate(32)=1 then tcy#=89 : character_move_fore(chr) : tmpy#=-35
+endif
+endif
+
+`torso.x=curvevalue(tmpx#,torso.x,80)
+
+scale limb obj,RArm,0,0,0
+scale limb obj,LArm,0,0,0
+
+if keystate(74) then dec leftupleg#,0.1
+if keystate(78) then inc leftupleg#,0.1
+
+if keystate(17)=1 then character_move_fore(chr)
+if keystate(31)=1 then character_move_back(chr)
+character_rotate(chr,freecamacx#,freecamacy#+tcy#,0)
+endif
+
+torso.y=curveangle(tmpy#,torso.y,8)
+rotate limb obj,Neck,torso.y,0,0
+rotate limb obj,Spine2,torso.y,0,0
+rotate limb obj,Spine1,torso.y,0,0
+
+`move camera right 10
+endif
+endif
+endfunction
+
+`Character controll functions
+function character_move_back(chr)
+if chr>0 and chr<=array count(chcontroller()) then chcontroller(chr).move.back=1
+endfunction
+
+function character_move_fore(chr)
+if chr>0 and chr<=array count(chcontroller()) then chcontroller(chr).move.fore=1
+endfunction
+
+function character_move_left(chr)
+if chr>0 and chr<=array count(chcontroller()) then chcontroller(chr).move.left=1
+endfunction
+
+function character_move_right(chr)
+if chr>0 and chr<=array count(chcontroller()) then chcontroller(chr).move.right=1
+endfunction
+
+function character_jump(chr)
+if chr>0 and chr<=array count(chcontroller()) then chcontroller(chr).move.jump=1
+endfunction
+
+function character_set_crouchspeed(chr,speed as float)
+if chr>0 and chr<=array count(chcontroller()) then chcontroller(chr).move.crouchspeed=speed
+endfunction
+
+function character_set_walkspeed(chr,speed as float)
+if chr>0 and chr<=array count(chcontroller()) then chcontroller(chr).move.walkspeed=speed
+endfunction
+
+function character_set_runspeed(chr,speed as float)
+if chr>0 and chr<=array count(chcontroller()) then chcontroller(chr).move.runspeed=speed
+endfunction
+
+function character_set_sprintspeed(chr,speed as float)
+if chr>0 and chr<=array count(chcontroller()) then chcontroller(chr).move.sprintspeed=speed
+endfunction
+
+function character_rotate(chr,rx#,ry#,rz#)
+if chr>0 and chr<=array count(chcontroller())
+chcontroller(chr).rotate.x=rx#
+chcontroller(chr).rotate.y=ry#
+chcontroller(chr).rotate.z=rz#
+endif
+endfunction
+
+function character_set_crouch_height(chr,value as float)
+if (chr>0 and chr<=array count(chcontroller())) and value>0 then chcontroller(chr).crouchheight=value
+endfunction
+ 
+function character_set_stand_height(chr,value as float)
+if (chr>0 and chr<=array count(chcontroller())) and value>0 then chcontroller(chr).standheight=value
+endfunction
+ 
+function deletecharacter(chr)
+if chr<=array count(chcontroller())
+if objectexist(chcontroller(chr).obja)=1 then dyn delete actor chcontroller(chr).obja : delete object chcontroller(chr).obja
+array delete element chcontroller(),chr
+endif
+endfunction
+
+function loopcharacter(chr,startframe,endframe,speed#,interpolation)
+if (chr>0 and chr<=array count(chcontroller()))
+if objectexist(chcontroller(chr).obj)=1
+set object speed chcontroller(chr).obj,speed#
+if interpolation>0
+if chcontroller(chr).anim.interpolation=0
+if chcontroller(chr).anim.startframe<>startframe or chcontroller(chr).anim.endframe<>endframe
+stop object chcontroller(chr).obj
+set object interpolation chcontroller(chr).obj,interpolation
+set object frame chcontroller(chr).obj,startframe
+chcontroller(chr).anim.interpolation=100/interpolation
+chcontroller(chr).anim.startframe=startframe
+chcontroller(chr).anim.endframe=endframe
+endif : endif : endif
+if chcontroller(chr).anim.interpolation>0
+dec chcontroller(chr).anim.interpolation
+else
+set object interpolation chcontroller(chr).obj,100 : loop object chcontroller(chr).obj,startframe,endframe : chcontroller(chr).anim.interpolation=0
+endif
+endif : endif
+endfunction
+
+function playcharacter(chr,startframe,endframe,speed#,interpolation)
+if (chr>0 and chr<=array count(chcontroller()))
+if objectexist(chcontroller(chr).obj)=1
+set object speed chcontroller(chr).obj,speed#
+if interpolation>0
+if chcontroller(chr).anim.interpolation=0
+if chcontroller(chr).anim.startframe<>startframe or chcontroller(chr).anim.endframe<>endframe
+stop object chcontroller(chr).obj
+set object interpolation chcontroller(chr).obj,interpolation
+set object frame chcontroller(chr).obj,startframe
+chcontroller(chr).anim.interpolation=100/interpolation
+chcontroller(chr).anim.startframe=startframe
+chcontroller(chr).anim.endframe=endframe
+endif : endif : endif
+if chcontroller(chr).anim.interpolation>0
+dec chcontroller(chr).anim.interpolation
+else
+set object interpolation chcontroller(chr).obj,100 : play object chcontroller(chr).obj,startframe,endframe : chcontroller(chr).anim.interpolation=0
+endif
+endif : endif
+endfunction
